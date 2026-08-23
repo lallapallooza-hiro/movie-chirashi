@@ -1,1 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import 'tailwindcss';
+
+@theme inline {
+  --color-background: #ffffff;
+  --color-foreground: #0a0a0a;
+  --color-card: #f5f5f5;
+  --color-card-foreground: #0a0a0a;
+  --color-primary: #e84530;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f0f0f0;
+  --color-secondary-foreground: #0a0a0a;
+  --color-muted: #e8e8e8;
+  --color-muted-foreground: #6b6b6b;
+  --color-accent: #e84530;
+  --color-accent-foreground: #ffffff;
+  --color-border: #d4d4d4;
+  --color-ring: #e84530;
+  --radius: 0px;
+}
+
+* {
+  font-family: 'Instrument Sans', sans-serif;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d4d4d4;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+*:hover::-webkit-scrollbar-thumb {
+  opacity: 1;
+}
