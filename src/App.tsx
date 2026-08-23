@@ -69,9 +69,9 @@ const CHIRASHI_LIST: Chirashi[] = [
   {
     id: "C-006",
     imageUrl: "https://images.unsplash.com/photo-1769321309399-38d9eda18370?w=280&h=400&fit=crop&auto=format",
-    // 英字タイトルの場合は titleKana: "英数字" にする
+    // 英字タイトルの場合は titleKana にタイトルの先頭文字（大文字）を入れる
     title: "Galaxy Express",
-    titleKana: "英数字",
+    titleKana: "G",
     year: 1982,
     genre: "SF",
     director: "藤田 隆",
@@ -111,7 +111,7 @@ const CHIRASHI_LIST: Chirashi[] = [
     id: "C-010",
     imageUrl: "https://images.unsplash.com/photo-1569793667639-dae11573b34f?w=280&h=400&fit=crop&auto=format",
     title: "Midnight Rain",
-    titleKana: "英数字",
+    titleKana: "M",
     year: 1979,
     genre: "ロマンス",
     director: "安田 豊",
@@ -139,10 +139,13 @@ const CHIRASHI_LIST: Chirashi[] = [
   },
 ];
 
-// ===== 五十音インデックスの定義 =====
-// 「英数字」を先頭に置くのが一般的なスタイルです
+// ===== 五十音＋英数字インデックスの定義 =====
+const ALPHA_INDEX = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+const DIGIT_INDEX = "0123456789".split("");
+
 const KANA_INDEX = [
-  "英数字",
+  ...ALPHA_INDEX,
+  ...DIGIT_INDEX,
   "ア", "イ", "ウ", "エ", "オ",
   "カ", "キ", "ク", "ケ", "コ",
   "サ", "シ", "ス", "セ", "ソ",
@@ -155,8 +158,8 @@ const KANA_INDEX = [
   "ワ", "ヲ", "ン",
 ];
 
-const GENRES = ["すべて", "ドラマ", "アクション", "ホラー", "コメディ", "SF", "ロマンス", "アニメ"];
-const DECADES = ["すべて", "1950年代", "1960年代", "1970年代", "1980年代", "1990年代", "2000年代", "2010年代", "2020年代"];
+const GENRES = ["ジャンル", "ドラマ", "アクション", "ホラー", "コメディ", "SF", "ロマンス", "アニメ"];
+const DECADES = ["公開年代", "1950年代", "1960年代", "1970年代", "1980年代", "1990年代", "2000年代", "2010年代", "2020年代"];
 
 function getDecade(year: number) {
   return `${Math.floor(year / 10) * 10}年代`;
@@ -165,8 +168,8 @@ function getDecade(year: number) {
 export default function App() {
   const [query, setQuery] = useState("");
   const [activeKana, setActiveKana] = useState<string | null>(null);
-  const [genre, setGenre] = useState("すべて");
-  const [decade, setDecade] = useState("すべて");
+  const [genre, setGenre] = useState("ジャンル");
+  const [decade, setDecade] = useState("公開年代");
   const [selected, setSelected] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
@@ -178,8 +181,8 @@ export default function App() {
       c.director.toLowerCase().includes(q) ||
       c.cast.some((name) => name.toLowerCase().includes(q));
     const matchKana = !activeKana || c.titleKana === activeKana;
-    const matchGenre = genre === "すべて" || c.genre === genre;
-    const matchDecade = decade === "すべて" || getDecade(c.year) === decade;
+    const matchGenre = genre === "ジャンル" || c.genre === genre;
+    const matchDecade = decade === "公開年代" || getDecade(c.year) === decade;
     return matchQuery && matchKana && matchGenre && matchDecade;
   });
 
@@ -189,11 +192,11 @@ export default function App() {
   const resetAll = () => {
     setQuery("");
     setActiveKana(null);
-    setGenre("すべて");
-    setDecade("すべて");
+    setGenre("ジャンル");
+    setDecade("公開年代");
   };
 
-  const hasFilter = query || activeKana || genre !== "すべて" || decade !== "すべて";
+  const hasFilter = query || activeKana || genre !== "ジャンル" || decade !== "公開年代";
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "var(--bg)", color: "var(--fg)" }}>
@@ -291,38 +294,85 @@ export default function App() {
           </div>
         </div>
 
-        {/* 五十音インデックス */}
-        <div className="px-6 py-2 flex items-center gap-px flex-wrap overflow-x-auto border-b border-white/10">
-          {/* 「全」ボタン */}
-          <button
-            onClick={() => setActiveKana(null)}
-            className={`px-3 py-1.5 font-mono text-xs transition-colors border-r border-white/10 ${
-              activeKana === null ? "text-white bg-white/10" : "text-white/40 hover:text-white/80"
-            }`}
-          >
-            全
-          </button>
+        {/* 英数字＋五十音インデックス */}
+        <div className="border-b border-white/10">
+          {/* A–Z ／ 0–9 行 */}
+          <div className="px-6 py-1.5 flex items-center gap-px flex-wrap border-b border-white/5">
+            <span className="font-mono text-[9px] text-white/25 w-8 flex-shrink-0">A–Z</span>
+            {ALPHA_INDEX.map((ch) => {
+              const count = CHIRASHI_LIST.filter((c) => c.titleKana === ch).length;
+              return (
+                <button
+                  key={ch}
+                  onClick={() => setActiveKana(activeKana === ch ? null : ch)}
+                  disabled={count === 0}
+                  className={`w-6 py-1 font-mono text-[11px] transition-colors text-center ${
+                    count === 0
+                      ? "text-white/15 cursor-default"
+                      : activeKana === ch
+                      ? "text-white bg-white/10 border border-white/30"
+                      : "text-white/60 hover:text-white"
+                  }`}
+                >
+                  {ch}
+                </button>
+              );
+            })}
+            <span className="mx-1 text-white/20">|</span>
+            <span className="font-mono text-[9px] text-white/25 mr-1">0–9</span>
+            {DIGIT_INDEX.map((ch) => {
+              const count = CHIRASHI_LIST.filter((c) => c.titleKana === ch).length;
+              return (
+                <button
+                  key={ch}
+                  onClick={() => setActiveKana(activeKana === ch ? null : ch)}
+                  disabled={count === 0}
+                  className={`w-6 py-1 font-mono text-[11px] transition-colors text-center ${
+                    count === 0
+                      ? "text-white/15 cursor-default"
+                      : activeKana === ch
+                      ? "text-white bg-white/10 border border-white/30"
+                      : "text-white/60 hover:text-white"
+                  }`}
+                >
+                  {ch}
+                </button>
+              );
+            })}
+          </div>
 
-          {KANA_INDEX.map((kana) => {
-            // このかなで始まるチラシが何件あるか数える
-            const count = CHIRASHI_LIST.filter((c) => c.titleKana === kana).length;
-            return (
-              <button
-                key={kana}
-                onClick={() => setActiveKana(activeKana === kana ? null : kana)}
-                disabled={count === 0}
-                className={`px-2.5 py-1.5 font-serif text-xs transition-colors ${
-                  count === 0
-                    ? "text-white/15 cursor-default"               // 該当なし → グレーアウト
-                    : activeKana === kana
-                    ? "text-white bg-white/10 border border-white/30"  // 選択中
-                    : "text-white/60 hover:text-white"             // 通常
-                } ${kana === "英数字" ? "text-[10px] px-2" : ""}`}
-              >
-                {kana}
-              </button>
-            );
-          })}
+          {/* 五十音行 */}
+          <div className="px-6 py-1.5 flex items-center gap-px flex-wrap">
+            <span className="font-mono text-[9px] text-white/25 w-8 flex-shrink-0">五十音</span>
+            {/* 「全」ボタン */}
+            <button
+              onClick={() => setActiveKana(null)}
+              className={`px-2.5 py-1 font-mono text-xs transition-colors ${
+                activeKana === null ? "text-white bg-white/10 border border-white/30" : "text-white/40 hover:text-white/80"
+              }`}
+            >
+              全
+            </button>
+            {KANA_INDEX.filter((k) => !ALPHA_INDEX.includes(k) && !DIGIT_INDEX.includes(k)).map((kana) => {
+              const count = CHIRASHI_LIST.filter((c) => c.titleKana === kana).length;
+              return (
+                <button
+                  key={kana}
+                  onClick={() => setActiveKana(activeKana === kana ? null : kana)}
+                  disabled={count === 0}
+                  className={`px-2 py-1 font-serif text-xs transition-colors ${
+                    count === 0
+                      ? "text-white/15 cursor-default"
+                      : activeKana === kana
+                      ? "text-white bg-white/10 border border-white/30"
+                      : "text-white/60 hover:text-white"
+                  }`}
+                >
+                  {kana}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </header>
 
@@ -335,8 +385,8 @@ export default function App() {
             style={{ borderColor: "var(--border)", background: "var(--card-bg)" }}>
             <span style={{ color: "var(--muted)" }}>
               {activeKana && <span>【{activeKana}】</span>}
-              {genre !== "すべて" && <span>【{genre}】</span>}
-              {decade !== "すべて" && <span>【{decade}】</span>}
+              {genre !== "ジャンル" && <span>【{genre}】</span>}
+              {decade !== "公開年代" && <span>【{decade}】</span>}
               {query && <span>「{query}」</span>}
             </span>
             <span className="font-bold" style={{ color: "var(--accent)" }}>{filtered.length}</span>
