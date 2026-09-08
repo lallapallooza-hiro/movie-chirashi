@@ -15,7 +15,8 @@ type FoldType =
 
 type ChirashiPanel = {
   url: string
-  label: string  // 例: "表面" "裏面" "中面A" "中面B"
+  label: string        // 例: "表面" "裏面" "中面A" "中面B"
+  orientation: Orientation  // パネルごとに縦/横を個別設定できる
 }
 
 type Chirashi = {
@@ -26,10 +27,14 @@ type Chirashi = {
   genre: string
   director: string
   cast: string[]
-  orientation: Orientation
   foldType: FoldType
   panels: ChirashiPanel[]  // 画像パネル（表面が panels[0]）
   addedAt: string          // 登録日（メイン画面のソートに使用）
+}
+
+// グリッド表示用：表面パネルの向きを返す
+function frontOrientation(c: Chirashi): Orientation {
+  return c.panels[0]?.orientation ?? "portrait"
 }
 
 // ページ遷移の状態
@@ -42,74 +47,69 @@ type Page =
 // サンプルデータ
 // ================================================================
 
+// パネルを作るヘルパー（向きごとにURLサイズを自動調整）
+function p(url: string, label: string, orientation: Orientation = "portrait"): ChirashiPanel {
+  const size = orientation === "landscape" ? "w=560&h=400" : "w=280&h=400"
+  const fullUrl = url.includes("?") ? url.replace(/w=\d+&h=\d+/, size) : `${url}?${size}&fit=crop&auto=format`
+  return { url: fullUrl, label, orientation }
+}
+
 const SAMPLE: Chirashi[] = [
+  // ── 縦縦パターン（表:縦 / 裏:縦）──────────────────────────
   {
     id: "C-001",
     title: "夜霧の追跡者",
     titleKana: "ヤ",
-    year: 1974,
-    genre: "アクション",
-    director: "鈴木 一郎",
-    cast: ["田中 健", "山田 花子"],
-    orientation: "portrait",
+    year: 1974, genre: "アクション", director: "鈴木 一郎", cast: ["田中 健", "山田 花子"],
     foldType: "single",
     panels: [
-      { url: "https://images.unsplash.com/photo-1769265095585-44764352cb77?w=280&h=400&fit=crop&auto=format", label: "表面" },
-      { url: "https://images.unsplash.com/photo-1769265095585-44764352cb77?w=280&h=400&fit=crop&auto=format&crop=entropy", label: "裏面" },
+      p("https://images.unsplash.com/photo-1769265095585-44764352cb77", "表面", "portrait"),
+      p("https://images.unsplash.com/photo-1769265095585-44764352cb77?crop=entropy", "裏面", "portrait"),
     ],
     addedAt: "2024-06-10",
   },
+  // ── 縦横パターン（表:縦 / 裏:横）──────────────────────────
   {
     id: "C-002",
     title: "明日へのタンゴ",
     titleKana: "ア",
-    year: 1988,
-    genre: "ロマンス",
-    director: "佐藤 美恵",
-    cast: ["木村 太郎", "伊藤 京子"],
-    orientation: "portrait",
+    year: 1988, genre: "ロマンス", director: "佐藤 美恵", cast: ["木村 太郎", "伊藤 京子"],
     foldType: "bifold",
     panels: [
-      { url: "https://images.unsplash.com/photo-1689045170733-bec91f0812a0?w=280&h=400&fit=crop&auto=format", label: "表面" },
-      { url: "https://images.unsplash.com/photo-1689045170733-bec91f0812a0?w=280&h=400&fit=crop&auto=format&crop=entropy", label: "裏面" },
-      { url: "https://images.unsplash.com/photo-1704721211126-f67684d8e0c9?w=280&h=400&fit=crop&auto=format", label: "中面A" },
-      { url: "https://images.unsplash.com/photo-1678694176437-a71b3feaf895?w=280&h=400&fit=crop&auto=format", label: "中面B" },
+      p("https://images.unsplash.com/photo-1689045170733-bec91f0812a0", "表面", "portrait"),  // 縦
+      p("https://images.unsplash.com/photo-1704721211126-f67684d8e0c9", "裏面", "landscape"), // 横
+      p("https://images.unsplash.com/photo-1678694176437-a71b3feaf895", "中面A", "portrait"),
+      p("https://images.unsplash.com/photo-1580940843810-6ac02e96a2eb", "中面B", "portrait"),
     ],
     addedAt: "2024-06-08",
   },
+  // ── 横横パターン（表:横 / 裏:横）──────────────────────────
   {
     id: "C-003",
     title: "深海の宴",
     titleKana: "シ",
-    year: 1963,
-    genre: "ホラー",
-    director: "渡辺 剛",
-    cast: ["高橋 恵子", "中村 光"],
-    orientation: "landscape",  // 横向きチラシ
+    year: 1963, genre: "ホラー", director: "渡辺 剛", cast: ["高橋 恵子", "中村 光"],
     foldType: "single",
     panels: [
-      { url: "https://images.unsplash.com/photo-1704721211126-f67684d8e0c9?w=560&h=400&fit=crop&auto=format", label: "表面" },
-      { url: "https://images.unsplash.com/photo-1704721211126-f67684d8e0c9?w=560&h=400&fit=crop&auto=format&crop=entropy", label: "裏面" },
+      p("https://images.unsplash.com/photo-1704721211126-f67684d8e0c9", "表面", "landscape"),
+      p("https://images.unsplash.com/photo-1704721211126-f67684d8e0c9?crop=entropy", "裏面", "landscape"),
     ],
     addedAt: "2024-06-07",
   },
+  // ── 横縦パターン（表:横 / 裏:縦）──────────────────────────
   {
     id: "C-004",
     title: "遥かなる峠",
     titleKana: "ハ",
-    year: 1952,
-    genre: "ドラマ",
-    director: "小林 正道",
-    cast: ["吉田 義男", "松本 千代"],
-    orientation: "portrait",
+    year: 1952, genre: "ドラマ", director: "小林 正道", cast: ["吉田 義男", "松本 千代"],
     foldType: "quadfold",
     panels: [
-      { url: "https://images.unsplash.com/photo-1678694176437-a71b3feaf895?w=280&h=400&fit=crop&auto=format", label: "表面" },
-      { url: "https://images.unsplash.com/photo-1678694176437-a71b3feaf895?w=280&h=400&fit=crop&auto=format&crop=entropy", label: "裏面" },
-      { url: "https://images.unsplash.com/photo-1580940843810-6ac02e96a2eb?w=280&h=400&fit=crop&auto=format", label: "中面A" },
-      { url: "https://images.unsplash.com/photo-1769321309399-38d9eda18370?w=280&h=400&fit=crop&auto=format", label: "中面B" },
-      { url: "https://images.unsplash.com/photo-1585667055741-7a94f3397509?w=280&h=400&fit=crop&auto=format", label: "中面C" },
-      { url: "https://images.unsplash.com/photo-1602421311752-e3b1a31b4384?w=280&h=400&fit=crop&auto=format", label: "中面D" },
+      p("https://images.unsplash.com/photo-1678694176437-a71b3feaf895", "表面", "landscape"), // 横
+      p("https://images.unsplash.com/photo-1678694176437-a71b3feaf895?crop=entropy", "裏面", "portrait"), // 縦
+      p("https://images.unsplash.com/photo-1580940843810-6ac02e96a2eb", "中面A", "portrait"),
+      p("https://images.unsplash.com/photo-1769321309399-38d9eda18370", "中面B", "portrait"),
+      p("https://images.unsplash.com/photo-1585667055741-7a94f3397509", "中面C", "portrait"),
+      p("https://images.unsplash.com/photo-1602421311752-e3b1a31b4384", "中面D", "portrait"),
     ],
     addedAt: "2024-06-05",
   },
@@ -117,31 +117,21 @@ const SAMPLE: Chirashi[] = [
     id: "C-005",
     title: "紅い風の季節",
     titleKana: "ア",
-    year: 1971,
-    genre: "ドラマ",
-    director: "加藤 順子",
-    cast: ["前田 誠", "坂本 麻衣"],
-    orientation: "portrait",
+    year: 1971, genre: "ドラマ", director: "加藤 順子", cast: ["前田 誠", "坂本 麻衣"],
     foldType: "single",
-    panels: [
-      { url: "https://images.unsplash.com/photo-1580940843810-6ac02e96a2eb?w=280&h=400&fit=crop&auto=format", label: "表面" },
-    ],
+    panels: [p("https://images.unsplash.com/photo-1580940843810-6ac02e96a2eb", "表面", "portrait")],
     addedAt: "2024-06-04",
   },
   {
     id: "C-006",
     title: "Galaxy Express",
     titleKana: "G",
-    year: 1982,
-    genre: "SF",
-    director: "藤田 隆",
-    cast: ["西村 洋介", "林 美穂"],
-    orientation: "landscape",  // 横向き
+    year: 1982, genre: "SF", director: "藤田 隆", cast: ["西村 洋介", "林 美穂"],
     foldType: "bifold",
     panels: [
-      { url: "https://images.unsplash.com/photo-1769321309399-38d9eda18370?w=560&h=400&fit=crop&auto=format", label: "表面" },
-      { url: "https://images.unsplash.com/photo-1769321309399-38d9eda18370?w=560&h=400&fit=crop&auto=format&crop=entropy", label: "裏面" },
-      { url: "https://images.unsplash.com/photo-1532680678473-a16f2cda8e43?w=560&h=400&fit=crop&auto=format", label: "中面（展開）" },
+      p("https://images.unsplash.com/photo-1769321309399-38d9eda18370", "表面", "landscape"),
+      p("https://images.unsplash.com/photo-1769321309399-38d9eda18370?crop=entropy", "裏面", "landscape"),
+      p("https://images.unsplash.com/photo-1532680678473-a16f2cda8e43", "中面（展開）", "landscape"),
     ],
     addedAt: "2024-06-03",
   },
@@ -149,18 +139,14 @@ const SAMPLE: Chirashi[] = [
     id: "C-007",
     title: "笑えない天才",
     titleKana: "ワ",
-    year: 1995,
-    genre: "コメディ",
-    director: "石田 幸一",
-    cast: ["岡田 達也", "吉川 恵理"],
-    orientation: "portrait",
+    year: 1995, genre: "コメディ", director: "石田 幸一", cast: ["岡田 達也", "吉川 恵理"],
     foldType: "trifold",
     panels: [
-      { url: "https://images.unsplash.com/photo-1585667055741-7a94f3397509?w=280&h=400&fit=crop&auto=format", label: "表面" },
-      { url: "https://images.unsplash.com/photo-1585667055741-7a94f3397509?w=280&h=400&fit=crop&auto=format&crop=entropy", label: "裏面" },
-      { url: "https://images.unsplash.com/photo-1602421311752-e3b1a31b4384?w=280&h=400&fit=crop&auto=format", label: "中面A" },
-      { url: "https://images.unsplash.com/photo-1706955306571-4d990815d549?w=280&h=400&fit=crop&auto=format", label: "中面B" },
-      { url: "https://images.unsplash.com/photo-1569793667639-dae11573b34f?w=280&h=400&fit=crop&auto=format", label: "中面C" },
+      p("https://images.unsplash.com/photo-1585667055741-7a94f3397509", "表面", "portrait"),
+      p("https://images.unsplash.com/photo-1585667055741-7a94f3397509?crop=entropy", "裏面", "portrait"),
+      p("https://images.unsplash.com/photo-1602421311752-e3b1a31b4384", "中面A", "portrait"),
+      p("https://images.unsplash.com/photo-1706955306571-4d990815d549", "中面B", "portrait"),
+      p("https://images.unsplash.com/photo-1569793667639-dae11573b34f", "中面C", "portrait"),
     ],
     addedAt: "2024-06-02",
   },
@@ -168,15 +154,11 @@ const SAMPLE: Chirashi[] = [
     id: "C-008",
     title: "黒い太陽",
     titleKana: "ク",
-    year: 1966,
-    genre: "アクション",
-    director: "中島 清二",
-    cast: ["斎藤 武", "田村 静"],
-    orientation: "portrait",
+    year: 1966, genre: "アクション", director: "中島 清二", cast: ["斎藤 武", "田村 静"],
     foldType: "single",
     panels: [
-      { url: "https://images.unsplash.com/photo-1602421311752-e3b1a31b4384?w=280&h=400&fit=crop&auto=format", label: "表面" },
-      { url: "https://images.unsplash.com/photo-1602421311752-e3b1a31b4384?w=280&h=400&fit=crop&auto=format&crop=entropy", label: "裏面" },
+      p("https://images.unsplash.com/photo-1602421311752-e3b1a31b4384", "表面", "portrait"),
+      p("https://images.unsplash.com/photo-1602421311752-e3b1a31b4384?crop=entropy", "裏面", "portrait"),
     ],
     addedAt: "2024-05-30",
   },
@@ -184,17 +166,13 @@ const SAMPLE: Chirashi[] = [
     id: "C-009",
     title: "東京漂流",
     titleKana: "ト",
-    year: 2003,
-    genre: "ドラマ",
-    director: "村田 信一",
-    cast: ["大塚 美里", "小川 健"],
-    orientation: "portrait",
+    year: 2003, genre: "ドラマ", director: "村田 信一", cast: ["大塚 美里", "小川 健"],
     foldType: "bifold",
     panels: [
-      { url: "https://images.unsplash.com/photo-1706955306571-4d990815d549?w=280&h=400&fit=crop&auto=format", label: "表面" },
-      { url: "https://images.unsplash.com/photo-1706955306571-4d990815d549?w=280&h=400&fit=crop&auto=format&crop=entropy", label: "裏面" },
-      { url: "https://images.unsplash.com/photo-1784034292926-c4bb77283a0e?w=280&h=400&fit=crop&auto=format", label: "中面A" },
-      { url: "https://images.unsplash.com/photo-1771517358779-b2f515da1894?w=280&h=400&fit=crop&auto=format", label: "中面B" },
+      p("https://images.unsplash.com/photo-1706955306571-4d990815d549", "表面", "portrait"),
+      p("https://images.unsplash.com/photo-1706955306571-4d990815d549?crop=entropy", "裏面", "portrait"),
+      p("https://images.unsplash.com/photo-1784034292926-c4bb77283a0e", "中面A", "portrait"),
+      p("https://images.unsplash.com/photo-1771517358779-b2f515da1894", "中面B", "portrait"),
     ],
     addedAt: "2024-05-28",
   },
@@ -202,30 +180,20 @@ const SAMPLE: Chirashi[] = [
     id: "C-010",
     title: "Midnight Rain",
     titleKana: "M",
-    year: 1979,
-    genre: "ロマンス",
-    director: "安田 豊",
-    cast: ["山本 敦子", "清水 隆"],
-    orientation: "landscape",
+    year: 1979, genre: "ロマンス", director: "安田 豊", cast: ["山本 敦子", "清水 隆"],
     foldType: "single",
-    panels: [
-      { url: "https://images.unsplash.com/photo-1569793667639-dae11573b34f?w=560&h=400&fit=crop&auto=format", label: "表面" },
-    ],
+    panels: [p("https://images.unsplash.com/photo-1569793667639-dae11573b34f", "表面", "landscape")],
     addedAt: "2024-05-25",
   },
   {
     id: "C-011",
     title: "真夜中の証人",
     titleKana: "マ",
-    year: 1958,
-    genre: "ドラマ",
-    director: "橋本 義雄",
-    cast: ["三浦 源次郎", "川本 葉子"],
-    orientation: "portrait",
+    year: 1958, genre: "ドラマ", director: "橋本 義雄", cast: ["三浦 源次郎", "川本 葉子"],
     foldType: "single",
     panels: [
-      { url: "https://images.unsplash.com/photo-1771517358779-b2f515da1894?w=280&h=400&fit=crop&auto=format", label: "表面" },
-      { url: "https://images.unsplash.com/photo-1771517358779-b2f515da1894?w=280&h=400&fit=crop&auto=format&crop=entropy", label: "裏面" },
+      p("https://images.unsplash.com/photo-1771517358779-b2f515da1894", "表面", "portrait"),
+      p("https://images.unsplash.com/photo-1771517358779-b2f515da1894?crop=entropy", "裏面", "portrait"),
     ],
     addedAt: "2024-05-20",
   },
@@ -233,17 +201,13 @@ const SAMPLE: Chirashi[] = [
     id: "C-012",
     title: "炎の道場",
     titleKana: "ホ",
-    year: 1985,
-    genre: "アクション",
-    director: "黒田 勝男",
-    cast: ["松田 勇二", "大野 さやか"],
-    orientation: "portrait",
+    year: 1985, genre: "アクション", director: "黒田 勝男", cast: ["松田 勇二", "大野 さやか"],
     foldType: "bifold",
     panels: [
-      { url: "https://images.unsplash.com/photo-1784034292926-c4bb77283a0e?w=280&h=400&fit=crop&auto=format", label: "表面" },
-      { url: "https://images.unsplash.com/photo-1784034292926-c4bb77283a0e?w=280&h=400&fit=crop&auto=format&crop=entropy", label: "裏面" },
-      { url: "https://images.unsplash.com/photo-1497604401993-f2e922e5cb0a?w=280&h=400&fit=crop&auto=format", label: "中面A" },
-      { url: "https://images.unsplash.com/photo-1463130456064-77fda7f96d6b?w=280&h=400&fit=crop&auto=format", label: "中面B" },
+      p("https://images.unsplash.com/photo-1784034292926-c4bb77283a0e", "表面", "portrait"),
+      p("https://images.unsplash.com/photo-1784034292926-c4bb77283a0e?crop=entropy", "裏面", "portrait"),
+      p("https://images.unsplash.com/photo-1497604401993-f2e922e5cb0a", "中面A", "portrait"),
+      p("https://images.unsplash.com/photo-1463130456064-77fda7f96d6b", "中面B", "portrait"),
     ],
     addedAt: "2024-05-18",
   },
@@ -281,6 +245,17 @@ const FOLD_LABEL: Record<FoldType, string> = {
 // CSVユーティリティ
 // ================================================================
 
+// CSV列の仕様（パネルは最大6面まで対応）
+// id, title, titleKana, year, genre, director, cast, foldType, addedAt,
+// panel1_url, panel1_label, panel1_orient,
+// panel2_url, panel2_label, panel2_orient,
+// panel3_url, panel3_label, panel3_orient,
+// panel4_url, panel4_label, panel4_orient,
+// panel5_url, panel5_label, panel5_orient,
+// panel6_url, panel6_label, panel6_orient
+
+const MAX_PANELS = 6
+
 function parseCsvLine(line: string): string[] {
   const result: string[] = []
   let current = ""
@@ -298,8 +273,8 @@ function parseCsv(text: string): { data: Chirashi[]; errors: string[] } {
   const lines = text.replace(/\r/g, "").split("\n").filter((l) => l.trim())
   const errors: string[] = []
   if (lines.length < 2) return { data: [], errors: ["データ行がありません"] }
-  const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase())
-  const required = ["id","title","titlekana","year","genre","director","cast"]
+  const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase().replace(/\s/g, ""))
+  const required = ["id", "title", "titlekana", "year", "genre", "director", "cast"]
   const missing = required.filter((r) => !headers.includes(r))
   if (missing.length > 0) return { data: [], errors: [`列が不足: ${missing.join(", ")}`] }
   const idx = (name: string) => headers.indexOf(name)
@@ -307,7 +282,26 @@ function parseCsv(text: string): { data: Chirashi[]; errors: string[] } {
   for (let i = 1; i < lines.length; i++) {
     const cols = parseCsvLine(lines[i])
     const year = parseInt(cols[idx("year")])
-    if (isNaN(year)) { errors.push(`${i+1}行目: yearが数字ではありません`); continue }
+    if (isNaN(year)) { errors.push(`${i + 1}行目: yearが数字ではありません`); continue }
+
+    // パネル列を読み取る（panel1_url〜panel6_url）
+    const panels: ChirashiPanel[] = []
+    for (let n = 1; n <= MAX_PANELS; n++) {
+      const urlCol = idx(`panel${n}_url`)
+      const labelCol = idx(`panel${n}_label`)
+      const orientCol = idx(`panel${n}_orient`)
+      const url = urlCol >= 0 ? (cols[urlCol] || "") : ""
+      if (!url) break  // URLが空なら以降のパネルはスキップ
+      const defaultLabels = ["表面", "裏面", "中面A", "中面B", "中面C", "中面D"]
+      const label = labelCol >= 0 ? (cols[labelCol] || defaultLabels[n - 1]) : defaultLabels[n - 1]
+      const orient = (orientCol >= 0 ? cols[orientCol] : "") as Orientation
+      panels.push({ url, label, orientation: orient === "landscape" ? "landscape" : "portrait" })
+    }
+    if (panels.length === 0) {
+      errors.push(`${i + 1}行目: panel1_urlが空です（スキップ）`)
+      continue
+    }
+
     data.push({
       id: cols[idx("id")] || `ROW-${i}`,
       title: cols[idx("title")] || "",
@@ -316,20 +310,32 @@ function parseCsv(text: string): { data: Chirashi[]; errors: string[] } {
       genre: cols[idx("genre")] || "",
       director: cols[idx("director")] || "",
       cast: (cols[idx("cast")] || "").split("/").map((s) => s.trim()).filter(Boolean),
-      orientation: (cols[headers.indexOf("orientation")] as Orientation) || "portrait",
-      foldType: (cols[headers.indexOf("foldtype")] as FoldType) || "single",
-      panels: [{ url: cols[headers.indexOf("imageurl")] || "", label: "表面" }],
-      addedAt: cols[headers.indexOf("addedat")] || new Date().toISOString().split("T")[0],
+      foldType: (cols[idx("foldtype")] as FoldType) || "single",
+      panels,
+      addedAt: cols[idx("addedat")] || new Date().toISOString().split("T")[0],
     })
   }
   return { data, errors }
 }
 
 function downloadTemplate() {
+  const header = [
+    "id", "title", "titleKana", "year", "genre", "director", "cast", "foldType", "addedAt",
+    "panel1_url", "panel1_label", "panel1_orient",
+    "panel2_url", "panel2_label", "panel2_orient",
+    "panel3_url", "panel3_label", "panel3_orient",
+    "panel4_url", "panel4_label", "panel4_orient",
+  ].join(",")
   const rows = [
-    "id,title,titleKana,year,genre,director,cast,orientation,foldType,imageUrl,addedAt",
-    "C-001,夜霧の追跡者,ヤ,1974,アクション,鈴木 一郎,田中 健/山田 花子,portrait,single,,2024-06-10",
-    "C-002,Galaxy Express,G,1982,SF,藤田 隆,西村 洋介,landscape,bifold,,2024-06-08",
+    header,
+    // 縦縦（表:portrait / 裏:portrait）
+    "C-001,夜霧の追跡者,ヤ,1974,アクション,鈴木 一郎,田中 健/山田 花子,single,2024-06-10,https://example.com/front.jpg,表面,portrait,https://example.com/back.jpg,裏面,portrait,,,,",
+    // 縦横（表:portrait / 裏:landscape）
+    "C-002,明日へのタンゴ,ア,1988,ロマンス,佐藤 美恵,木村 太郎/伊藤 京子,bifold,2024-06-08,https://example.com/front.jpg,表面,portrait,https://example.com/back.jpg,裏面,landscape,https://example.com/inside1.jpg,中面A,portrait,https://example.com/inside2.jpg,中面B,portrait",
+    // 横横（表:landscape / 裏:landscape）
+    "C-003,深海の宴,シ,1963,ホラー,渡辺 剛,高橋 恵子/中村 光,single,2024-06-07,https://example.com/front.jpg,表面,landscape,https://example.com/back.jpg,裏面,landscape,,,,",
+    // 横縦（表:landscape / 裏:portrait）
+    "C-004,遥かなる峠,ハ,1952,ドラマ,小林 正道,吉田 義男,single,2024-06-05,https://example.com/front.jpg,表面,landscape,https://example.com/back.jpg,裏面,portrait,,,,",
   ]
   const blob = new Blob(["﻿" + rows.join("\n")], { type: "text/csv;charset=utf-8" })
   const a = document.createElement("a")
@@ -343,7 +349,7 @@ function downloadTemplate() {
 // ================================================================
 
 function ChirashiCard({ c, onClick }: { c: Chirashi; onClick: () => void }) {
-  const isLandscape = c.orientation === "landscape"
+  const isLandscape = frontOrientation(c) === "landscape"
   const front = c.panels[0]
 
   return (
@@ -408,87 +414,75 @@ function ChirashiCard({ c, onClick }: { c: Chirashi; onClick: () => void }) {
 // 個別画面のパネル表示
 // ================================================================
 
+// パネル1枚の表示（向きに応じてサイズが変わる）
+function PanelItem({ panel, size = 140 }: { panel: ChirashiPanel; size?: number }) {
+  const isLandscape = panel.orientation === "landscape"
+  const width = isLandscape ? size * 2 : size
+  return (
+    <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+      <div
+        className="overflow-hidden shadow-md"
+        style={{
+          width: `${width}px`,
+          aspectRatio: isLandscape ? "4/3" : "2/3",
+          background: "#e8e0d4",
+          outline: "1px solid var(--border)",
+        }}
+      >
+        {panel.url ? (
+          <img src={panel.url} alt={panel.label} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center font-serif text-2xl" style={{ color: "var(--border)" }}>映</div>
+        )}
+      </div>
+      <span className="font-mono text-[10px]" style={{ color: "var(--muted)" }}>{panel.label}</span>
+      {/* 向きバッジ */}
+      <span className="font-mono text-[8px] px-1.5 py-0.5 border" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+        {panel.orientation === "landscape" ? "横向き" : "縦向き"}
+      </span>
+    </div>
+  )
+}
+
 function PanelDisplay({ c }: { c: Chirashi }) {
-  const isLandscape = c.orientation === "landscape"
-
-  // 折り種類ごとの表示レイアウトを決定
-  // 表面・裏面は常に並べて表示
-  // 中面は折り種類に応じてグリッド列数を変える
-  const frontBack = c.panels.filter((p) => p.label === "表面" || p.label === "裏面")
-  const insides = c.panels.filter((p) => p.label !== "表面" && p.label !== "裏面")
-
-  const panelStyle = (orientation: Orientation) => ({
-    aspectRatio: orientation === "landscape" ? "4/3" : "2/3",
-    background: "#e8e0d4",
-  })
-
-  // 中面のグリッド列数
-  const insideCols =
-    c.foldType === "bifold" ? 2 :
-    c.foldType === "trifold" ? 3 :
-    c.foldType === "quadfold" ? 4 : 1
+  const frontBack = c.panels.filter((panel) => panel.label === "表面" || panel.label === "裏面")
+  const insides = c.panels.filter((panel) => panel.label !== "表面" && panel.label !== "裏面")
 
   return (
-    <div className="space-y-6">
-      {/* 表面・裏面 */}
+    <div className="space-y-8">
+      {/* 外面（表面・裏面）：それぞれのパネルが独自の向きを持つ */}
       {frontBack.length > 0 && (
         <div>
-          <p className="font-mono text-[10px] mb-3 tracking-widest" style={{ color: "var(--muted)" }}>
+          <p className="font-mono text-[10px] mb-4 tracking-widest" style={{ color: "var(--muted)" }}>
             外面
+            {/* 表裏の向きの組み合わせを表示 */}
+            {frontBack.length === 2 && (
+              <span className="ml-2 px-2 py-0.5 border text-[9px]" style={{ borderColor: "var(--border)" }}>
+                {frontBack[0].orientation === "portrait" ? "縦" : "横"}
+                ・
+                {frontBack[1].orientation === "portrait" ? "縦" : "横"}
+                パターン
+              </span>
+            )}
           </p>
-          <div className="flex gap-4 flex-wrap">
+          <div className="flex gap-6 flex-wrap items-start">
             {frontBack.map((panel) => (
-              <div key={panel.label} className="flex flex-col items-center gap-1.5">
-                <div
-                  className="overflow-hidden shadow-md"
-                  style={{
-                    ...panelStyle(isLandscape ? "landscape" : "portrait"),
-                    width: isLandscape ? "240px" : "140px",
-                    flex: "0 0 auto",
-                  }}
-                >
-                  {panel.url ? (
-                    <img src={panel.url} alt={panel.label} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center font-serif text-2xl" style={{ color: "var(--border)" }}>映</div>
-                  )}
-                </div>
-                <span className="font-mono text-[10px]" style={{ color: "var(--muted)" }}>{panel.label}</span>
-              </div>
+              <PanelItem key={panel.label} panel={panel} size={140} />
             ))}
           </div>
         </div>
       )}
 
-      {/* 中面 */}
+      {/* 中面：展開状態として横並びに表示 */}
       {insides.length > 0 && (
         <div>
-          <p className="font-mono text-[10px] mb-3 tracking-widest" style={{ color: "var(--muted)" }}>
+          <p className="font-mono text-[10px] mb-4 tracking-widest" style={{ color: "var(--muted)" }}>
             中面（{FOLD_LABEL[c.foldType]}・展開）
           </p>
-          {/* 中面は横に並べて「展開した」雰囲気を出す */}
-          <div
-            className="flex gap-0.5 items-stretch"
-            style={{ maxWidth: `${insideCols * (isLandscape ? 200 : 120) + (insideCols - 1) * 2}px` }}
-          >
+          {/* 中面は区切り線なしで密接に並べ、開いた状態を表現 */}
+          <div className="flex gap-px items-start flex-wrap">
             {insides.map((panel, i) => (
-              <div key={i} className="flex flex-col items-center gap-1.5 flex-1">
-                <div
-                  className="overflow-hidden shadow-sm w-full"
-                  style={{
-                    aspectRatio: isLandscape ? "4/3" : "2/3",
-                    background: "#e8e0d4",
-                    outline: "1px solid var(--border)",
-                  }}
-                >
-                  {panel.url ? (
-                    <img src={panel.url} alt={panel.label} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center font-serif text-lg" style={{ color: "var(--border)" }}>中</div>
-                  )}
-                </div>
-                <span className="font-mono text-[9px]" style={{ color: "var(--muted)" }}>{panel.label}</span>
-              </div>
+              <PanelItem key={i} panel={panel} size={120} />
             ))}
           </div>
         </div>
@@ -812,7 +806,7 @@ function DetailView({
         <div className="font-mono text-[10px] mb-1 flex items-center gap-2" style={{ color: "var(--muted)" }}>
           <span>{c.id}</span>
           <span>·</span>
-          <span>{c.orientation === "landscape" ? "横向き" : "縦向き"}</span>
+          <span>表面: {frontOrientation(c) === "landscape" ? "横向き" : "縦向き"}</span>
           <span>·</span>
           <span>{FOLD_LABEL[c.foldType]}</span>
           <span>·</span>
