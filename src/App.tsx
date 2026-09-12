@@ -420,95 +420,199 @@ function ChirashiCard({ c, onClick }: { c: Chirashi; onClick: () => void }) {
 
 type LightboxState = { url: string; label: string; orientation: Orientation } | null
 
+const ZOOM_MIN = 0.5
+const ZOOM_MAX = 5
+const ZOOM_STEP = 0.25
+
 function Lightbox({ state, onClose }: { state: LightboxState; onClose: () => void }) {
-  // キーボード操作（Esc で閉じる）
+  const [zoom, setZoom] = useState(1)
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const dragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // 開くたびにズーム・位置をリセット
+  useEffect(() => {
+    if (state) { setZoom(1); setOffset({ x: 0, y: 0 }) }
+  }, [state])
+
+  // Esc で閉じる、+/- でズーム
   useEffect(() => {
     if (!state) return
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose()
+      if (e.key === "+" || e.key === "=") setZoom((z) => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))
+      if (e.key === "-") setZoom((z) => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))
+      if (e.key === "0") { setZoom(1); setOffset({ x: 0, y: 0 }) }
+    }
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
   }, [state, onClose])
 
   // スクロール抑止
   useEffect(() => {
-    if (state) { document.body.style.overflow = "hidden" }
-    else { document.body.style.overflow = "" }
+    document.body.style.overflow = state ? "hidden" : ""
     return () => { document.body.style.overflow = "" }
   }, [state])
+
+  // マウスホイールでズーム
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault()
+    const delta = e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP
+    setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(z + delta).toFixed(2))))
+  }, [])
+
+  // ドラッグで移動（ズーム時のみ有効）
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (zoom <= 1) return
+    dragRef.current = { startX: e.clientX, startY: e.clientY, ox: offset.x, oy: offset.y }
+    e.preventDefault()
+  }, [zoom, offset])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!dragRef.current) return
+    setOffset({
+      x: dragRef.current.ox + (e.clientX - dragRef.current.startX),
+      y: dragRef.current.oy + (e.clientY - dragRef.current.startY),
+    })
+  }, [])
+
+  const handleMouseUp = useCallback(() => { dragRef.current = null }, [])
+
+  const changeZoom = (delta: number) => {
+    setZoom((z) => {
+      const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(z + delta).toFixed(2)))
+      // ズームアウトして1倍以下になったら位置リセット
+      if (next <= 1) setOffset({ x: 0, y: 0 })
+      return next
+    })
+  }
+
+  const resetZoom = () => { setZoom(1); setOffset({ x: 0, y: 0 }) }
 
   if (!state) return null
 
   const isLandscape = state.orientation === "landscape"
+  const isDragging = zoom > 1
 
   return (
-    // 背景オーバーレイ（クリックで閉じる）
     <div
-      className="lightbox-modal fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.88)" }}
-      onClick={onClose}
-      // 右クリック・コンテキストメニューを抑止（保存防止）
+      className="lightbox-modal fixed inset-0 z-50 flex flex-col items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.92)" }}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* 画像コンテナ（クリックが背景に伝播しないよう止める） */}
-      <div
-        className="relative flex flex-col items-center gap-3"
-        style={{ maxWidth: isLandscape ? "90vw" : "60vw", maxHeight: "90vh" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* ラベル */}
+      {/* 上部バー */}
+      <div className="w-full flex items-center justify-between px-6 py-3 flex-shrink-0"
+        style={{ background: "rgba(0,0,0,0.4)" }}>
         <div className="flex items-center gap-3">
           <span className="font-serif text-white text-sm font-semibold">{state.label}</span>
-          <span className="font-mono text-[10px] px-2 py-0.5 border border-white/20 text-white/50">
+          <span className="font-mono text-[10px] px-2 py-0.5 border border-white/20 text-white/40">
             {isLandscape ? "横向き" : "縦向き"}
           </span>
-          <span className="font-mono text-[10px] text-white/30">参照専用</span>
+          <span className="font-mono text-[10px] text-white/25">参照専用</span>
         </div>
 
-        {/* 画像本体 */}
+        {/* ズームコントロール */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => changeZoom(-ZOOM_STEP)}
+            disabled={zoom <= ZOOM_MIN}
+            className="w-8 h-8 font-mono text-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-25 disabled:cursor-default"
+          >−</button>
+
+          <button
+            onClick={resetZoom}
+            className="font-mono text-xs px-3 h-8 text-white/70 hover:text-white hover:bg-white/10 transition-colors min-w-[4rem]"
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+
+          <button
+            onClick={() => changeZoom(ZOOM_STEP)}
+            disabled={zoom >= ZOOM_MAX}
+            className="w-8 h-8 font-mono text-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-25 disabled:cursor-default"
+          >＋</button>
+
+          <div className="w-px h-5 mx-2 bg-white/20" />
+
+          {/* ズームバー */}
+          <input
+            type="range"
+            min={ZOOM_MIN}
+            max={ZOOM_MAX}
+            step={ZOOM_STEP}
+            value={zoom}
+            onChange={(e) => {
+              const next = parseFloat(e.target.value)
+              setZoom(next)
+              if (next <= 1) setOffset({ x: 0, y: 0 })
+            }}
+            className="w-28 accent-white cursor-pointer"
+          />
+
+          <div className="w-px h-5 mx-2 bg-white/20" />
+
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-white font-mono text-xl leading-none transition-colors"
+          >×</button>
+        </div>
+      </div>
+
+      {/* 画像エリア（ホイールズーム・ドラッグ移動） */}
+      <div
+        ref={containerRef}
+        className="flex-1 w-full flex items-center justify-center overflow-hidden"
+        style={{ cursor: isDragging ? "grab" : "default" }}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onClick={(e) => {
+          // ドラッグ後の誤クリックを無視、背景クリックで閉じる
+          if (dragRef.current === null && e.target === e.currentTarget) onClose()
+        }}
+      >
         <div
-          className="relative overflow-hidden"
           style={{
-            maxWidth: "100%",
-            maxHeight: "80vh",
-            // ユーザー選択・ドラッグ禁止
+            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+            transformOrigin: "center center",
+            transition: dragRef.current ? "none" : "transform 0.15s ease",
             userSelect: "none",
             WebkitUserSelect: "none",
-            pointerEvents: "none",
           }}
+          onContextMenu={(e) => e.preventDefault()}
         >
           <img
             src={state.url}
             alt={state.label}
             draggable={false}
             style={{
-              maxWidth: "100%",
-              maxHeight: "80vh",
+              maxWidth: isLandscape ? "80vw" : "50vw",
+              maxHeight: "75vh",
               objectFit: "contain",
               display: "block",
+              pointerEvents: "none",
             }}
           />
-          {/* 透明オーバーレイ（右クリック・ドラッグ保存をさらに抑止） */}
-          <div className="absolute inset-0" style={{ pointerEvents: "all" }} onContextMenu={(e) => e.preventDefault()} />
         </div>
-
-        {/* 閉じるボタン */}
-        <button
-          onClick={onClose}
-          className="font-mono text-xs text-white/50 hover:text-white transition-colors"
-          style={{ pointerEvents: "all" }}
-        >
-          ✕ 閉じる（Escキーでも閉じられます）
-        </button>
       </div>
 
-      {/* 閉じるボタン（右上） */}
-      <button
-        onClick={onClose}
-        className="absolute top-5 right-6 text-white/40 hover:text-white font-mono text-2xl leading-none transition-colors"
-        style={{ pointerEvents: "all" }}
-      >
-        ×
-      </button>
+      {/* 下部ヒント */}
+      <div className="w-full py-2 flex items-center justify-center gap-6 flex-shrink-0"
+        style={{ background: "rgba(0,0,0,0.4)" }}>
+        {[
+          ["ホイール", "ズーム"],
+          ["+  /  −", "ズーム"],
+          ["0キー", "リセット"],
+          ["ドラッグ", "移動（拡大時）"],
+          ["Esc", "閉じる"],
+        ].map(([key, desc]) => (
+          <span key={key} className="font-mono text-[10px] text-white/30">
+            <span className="text-white/50">{key}</span> {desc}
+          </span>
+        ))}
+      </div>
     </div>
   )
 }
