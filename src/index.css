@@ -29,3 +29,9 @@ body {
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* ライトボックス表示中・印刷時は画像モーダルのみ表示（他は非表示） */
+@media print {
+  body > * { display: none !important; }
+  .lightbox-modal { display: none !important; }
+}

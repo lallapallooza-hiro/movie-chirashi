@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 
 // ================================================================
 // 型定義
@@ -414,23 +414,138 @@ function ChirashiCard({ c, onClick }: { c: Chirashi; onClick: () => void }) {
 // 個別画面のパネル表示
 // ================================================================
 
+// ================================================================
+// ライトボックス（拡大表示モーダル）
+// ================================================================
+
+type LightboxState = { url: string; label: string; orientation: Orientation } | null
+
+function Lightbox({ state, onClose }: { state: LightboxState; onClose: () => void }) {
+  // キーボード操作（Esc で閉じる）
+  useEffect(() => {
+    if (!state) return
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [state, onClose])
+
+  // スクロール抑止
+  useEffect(() => {
+    if (state) { document.body.style.overflow = "hidden" }
+    else { document.body.style.overflow = "" }
+    return () => { document.body.style.overflow = "" }
+  }, [state])
+
+  if (!state) return null
+
+  const isLandscape = state.orientation === "landscape"
+
+  return (
+    // 背景オーバーレイ（クリックで閉じる）
+    <div
+      className="lightbox-modal fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.88)" }}
+      onClick={onClose}
+      // 右クリック・コンテキストメニューを抑止（保存防止）
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      {/* 画像コンテナ（クリックが背景に伝播しないよう止める） */}
+      <div
+        className="relative flex flex-col items-center gap-3"
+        style={{ maxWidth: isLandscape ? "90vw" : "60vw", maxHeight: "90vh" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* ラベル */}
+        <div className="flex items-center gap-3">
+          <span className="font-serif text-white text-sm font-semibold">{state.label}</span>
+          <span className="font-mono text-[10px] px-2 py-0.5 border border-white/20 text-white/50">
+            {isLandscape ? "横向き" : "縦向き"}
+          </span>
+          <span className="font-mono text-[10px] text-white/30">参照専用</span>
+        </div>
+
+        {/* 画像本体 */}
+        <div
+          className="relative overflow-hidden"
+          style={{
+            maxWidth: "100%",
+            maxHeight: "80vh",
+            // ユーザー選択・ドラッグ禁止
+            userSelect: "none",
+            WebkitUserSelect: "none",
+            pointerEvents: "none",
+          }}
+        >
+          <img
+            src={state.url}
+            alt={state.label}
+            draggable={false}
+            style={{
+              maxWidth: "100%",
+              maxHeight: "80vh",
+              objectFit: "contain",
+              display: "block",
+            }}
+          />
+          {/* 透明オーバーレイ（右クリック・ドラッグ保存をさらに抑止） */}
+          <div className="absolute inset-0" style={{ pointerEvents: "all" }} onContextMenu={(e) => e.preventDefault()} />
+        </div>
+
+        {/* 閉じるボタン */}
+        <button
+          onClick={onClose}
+          className="font-mono text-xs text-white/50 hover:text-white transition-colors"
+          style={{ pointerEvents: "all" }}
+        >
+          ✕ 閉じる（Escキーでも閉じられます）
+        </button>
+      </div>
+
+      {/* 閉じるボタン（右上） */}
+      <button
+        onClick={onClose}
+        className="absolute top-5 right-6 text-white/40 hover:text-white font-mono text-2xl leading-none transition-colors"
+        style={{ pointerEvents: "all" }}
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
 // パネル1枚の表示（向きに応じてサイズが変わる）
-function PanelItem({ panel, size = 140 }: { panel: ChirashiPanel; size?: number }) {
+function PanelItem({ panel, size = 140, onOpenLightbox }: {
+  panel: ChirashiPanel
+  size?: number
+  onOpenLightbox?: (state: LightboxState) => void
+}) {
   const isLandscape = panel.orientation === "landscape"
   const width = isLandscape ? size * 2 : size
+  const canExpand = !!panel.url && !!onOpenLightbox
+
   return (
     <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
       <div
-        className="overflow-hidden shadow-md"
+        className={`overflow-hidden shadow-md relative group ${canExpand ? "cursor-zoom-in" : ""}`}
         style={{
           width: `${width}px`,
           aspectRatio: isLandscape ? "4/3" : "2/3",
           background: "#e8e0d4",
           outline: "1px solid var(--border)",
         }}
+        onClick={() => canExpand && onOpenLightbox!({ url: panel.url, label: panel.label, orientation: panel.orientation })}
       >
         {panel.url ? (
-          <img src={panel.url} alt={panel.label} className="w-full h-full object-cover" />
+          <>
+            <img src={panel.url} alt={panel.label} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+            {/* ホバー時に拡大アイコン */}
+            {canExpand && (
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                style={{ background: "rgba(0,0,0,0.35)" }}>
+                <span className="text-white text-2xl font-mono">⊕</span>
+              </div>
+            )}
+          </>
         ) : (
           <div className="w-full h-full flex items-center justify-center font-serif text-2xl" style={{ color: "var(--border)" }}>映</div>
         )}
@@ -445,49 +560,54 @@ function PanelItem({ panel, size = 140 }: { panel: ChirashiPanel; size?: number 
 }
 
 function PanelDisplay({ c }: { c: Chirashi }) {
+  const [lightbox, setLightbox] = useState<LightboxState>(null)
   const frontBack = c.panels.filter((panel) => panel.label === "表面" || panel.label === "裏面")
   const insides = c.panels.filter((panel) => panel.label !== "表面" && panel.label !== "裏面")
 
   return (
-    <div className="space-y-8">
-      {/* 外面（表面・裏面）：それぞれのパネルが独自の向きを持つ */}
-      {frontBack.length > 0 && (
-        <div>
-          <p className="font-mono text-[10px] mb-4 tracking-widest" style={{ color: "var(--muted)" }}>
-            外面
-            {/* 表裏の向きの組み合わせを表示 */}
-            {frontBack.length === 2 && (
-              <span className="ml-2 px-2 py-0.5 border text-[9px]" style={{ borderColor: "var(--border)" }}>
-                {frontBack[0].orientation === "portrait" ? "縦" : "横"}
-                ・
-                {frontBack[1].orientation === "portrait" ? "縦" : "横"}
-                パターン
-              </span>
-            )}
-          </p>
-          <div className="flex gap-6 flex-wrap items-start">
-            {frontBack.map((panel) => (
-              <PanelItem key={panel.label} panel={panel} size={140} />
-            ))}
-          </div>
-        </div>
-      )}
+    <>
+      <Lightbox state={lightbox} onClose={() => setLightbox(null)} />
 
-      {/* 中面：展開状態として横並びに表示 */}
-      {insides.length > 0 && (
-        <div>
-          <p className="font-mono text-[10px] mb-4 tracking-widest" style={{ color: "var(--muted)" }}>
-            中面（{FOLD_LABEL[c.foldType]}・展開）
-          </p>
-          {/* 中面は区切り線なしで密接に並べ、開いた状態を表現 */}
-          <div className="flex gap-px items-start flex-wrap">
-            {insides.map((panel, i) => (
-              <PanelItem key={i} panel={panel} size={120} />
-            ))}
+      <div className="space-y-8">
+        {/* 外面（表面・裏面） */}
+        {frontBack.length > 0 && (
+          <div>
+            <p className="font-mono text-[10px] mb-4 tracking-widest" style={{ color: "var(--muted)" }}>
+              外面
+              {frontBack.length === 2 && (
+                <span className="ml-2 px-2 py-0.5 border text-[9px]" style={{ borderColor: "var(--border)" }}>
+                  {frontBack[0].orientation === "portrait" ? "縦" : "横"}
+                  ・
+                  {frontBack[1].orientation === "portrait" ? "縦" : "横"}
+                  パターン
+                </span>
+              )}
+              <span className="ml-3 text-[9px]" style={{ color: "var(--muted)" }}>画像をクリックで拡大</span>
+            </p>
+            <div className="flex gap-6 flex-wrap items-start">
+              {frontBack.map((panel) => (
+                <PanelItem key={panel.label} panel={panel} size={140} onOpenLightbox={setLightbox} />
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+
+        {/* 中面 */}
+        {insides.length > 0 && (
+          <div>
+            <p className="font-mono text-[10px] mb-4 tracking-widest" style={{ color: "var(--muted)" }}>
+              中面（{FOLD_LABEL[c.foldType]}・展開）
+              <span className="ml-3 text-[9px]">画像をクリックで拡大</span>
+            </p>
+            <div className="flex gap-px items-start flex-wrap">
+              {insides.map((panel, i) => (
+                <PanelItem key={i} panel={panel} size={120} onOpenLightbox={setLightbox} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   )
 }
 
