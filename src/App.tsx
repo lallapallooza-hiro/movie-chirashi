@@ -219,6 +219,31 @@ const SAMPLE: Chirashi[] = [
 
 const ITEMS_PER_PAGE = 20
 
+// ================================================================
+// 濁音・半濁音 → 清音に正規化するマップ
+// 例: プ→フ、ガ→カ、バ→ハ
+// titleKana に「プ」と入力されていても「フ」行に表示される
+// ================================================================
+const DAKUTEN_MAP: Record<string, string> = {
+  // ガ行 → カ行
+  ガ:"カ", ギ:"キ", グ:"ク", ゲ:"ケ", ゴ:"コ",
+  // ザ行 → サ行
+  ザ:"サ", ジ:"シ", ズ:"ス", ゼ:"セ", ゾ:"ソ",
+  // ダ行 → タ行
+  ダ:"タ", ヂ:"チ", ヅ:"ツ", デ:"テ", ド:"ト",
+  // バ行 → ハ行
+  バ:"ハ", ビ:"ヒ", ブ:"フ", ベ:"ヘ", ボ:"ホ",
+  // パ行（半濁音）→ ハ行
+  パ:"ハ", ピ:"ヒ", プ:"フ", ペ:"ヘ", ポ:"ホ",
+  // ヴ → ア行（ウ）
+  ヴ:"ウ",
+}
+
+// titleKana を五十音インデックスの基本文字に変換する
+function normalizeKana(kana: string): string {
+  return DAKUTEN_MAP[kana] ?? kana
+}
+
 const ALPHA_INDEX = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")
 const DIGIT_INDEX = "0123456789".split("")
 const KANA_ONLY = [
@@ -829,7 +854,7 @@ function Header({
         <div className="px-6 py-1.5 flex items-center gap-px flex-wrap border-b border-white/5">
           <span className="font-mono text-[9px] text-white/25 w-8 flex-shrink-0">A–Z</span>
           {ALPHA_INDEX.map((ch) => {
-            const count = chirashiList.filter((c) => c.titleKana === ch).length
+            const count = chirashiList.filter((c) => normalizeKana(c.titleKana) === ch).length
             return (
               <button key={ch} disabled={count === 0}
                 onClick={() => onNavigate({ type: "tab", kana: ch, pageNum: 1 })}
@@ -841,7 +866,7 @@ function Header({
           <span className="mx-1 text-white/20">|</span>
           <span className="font-mono text-[9px] text-white/25 mr-1">0–9</span>
           {DIGIT_INDEX.map((ch) => {
-            const count = chirashiList.filter((c) => c.titleKana === ch).length
+            const count = chirashiList.filter((c) => normalizeKana(c.titleKana) === ch).length
             return (
               <button key={ch} disabled={count === 0}
                 onClick={() => onNavigate({ type: "tab", kana: ch, pageNum: 1 })}
@@ -862,7 +887,7 @@ function Header({
             メイン
           </button>
           {KANA_ONLY.map((kana) => {
-            const count = chirashiList.filter((c) => c.titleKana === kana).length
+            const count = chirashiList.filter((c) => normalizeKana(c.titleKana) === kana).length
             return (
               <button key={kana} disabled={count === 0}
                 onClick={() => onNavigate({ type: "tab", kana, pageNum: 1 })}
@@ -920,7 +945,7 @@ function TabView({
   pageNum: number
   onNavigate: (p: Page) => void
 }) {
-  const items = chirashiList.filter((c) => c.titleKana === kana)
+  const items = chirashiList.filter((c) => normalizeKana(c.titleKana) === kana)
   const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE)
   const pageItems = items.slice((pageNum - 1) * ITEMS_PER_PAGE, pageNum * ITEMS_PER_PAGE)
 
@@ -1052,7 +1077,7 @@ function DetailView({
 
       {/* 前後のチラシへのナビ */}
       {back.type === "tab" && (() => {
-        const siblings = chirashiList.filter((item) => item.titleKana === back.kana)
+        const siblings = chirashiList.filter((item) => normalizeKana(item.titleKana) === back.kana)
         const idx = siblings.findIndex((item) => item.id === id)
         const prev = siblings[idx - 1]
         const next = siblings[idx + 1]
