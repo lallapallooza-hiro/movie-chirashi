@@ -755,25 +755,39 @@ function Header({
   chirashiList: Chirashi[]
   page: Page
   onNavigate: (p: Page) => void
-  onCsvImport: (list: Chirashi[]) => void
+  onCsvImport: (incoming: Chirashi[], mode: "append" | "overwrite") => void
   showImportPanel: boolean
   setShowImportPanel: (v: boolean) => void
 }) {
   const [isDragging, setIsDragging] = useState(false)
+  const [importMode, setImportMode] = useState<"append" | "overwrite">("append")
+  const [pendingData, setPendingData] = useState<Chirashi[] | null>(null)  // 確認待ちデータ
   const [importErrors, setImportErrors] = useState<string[]>([])
   const [importSuccess, setImportSuccess] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = useCallback((file: File) => {
     if (!file.name.endsWith(".csv")) { setImportErrors(["CSVファイルを選択してください"]); return }
+    setPendingData(null)
+    setImportErrors([])
+    setImportSuccess(null)
     const reader = new FileReader()
     reader.onload = (e) => {
       const { data, errors } = parseCsv(e.target?.result as string)
       setImportErrors(errors)
-      if (data.length > 0) { onCsvImport(data); setImportSuccess(`${data.length}件を読み込みました`); setShowImportPanel(false) }
+      if (data.length > 0) setPendingData(data)  // 確認ステップへ
     }
     reader.readAsText(file, "UTF-8")
-  }, [onCsvImport, setShowImportPanel])
+  }, [])
+
+  const confirmImport = () => {
+    if (!pendingData) return
+    onCsvImport(pendingData, importMode)
+    const verb = importMode === "append" ? "追加" : "上書き"
+    setImportSuccess(`${pendingData.length}件を${verb}しました`)
+    setPendingData(null)
+    setShowImportPanel(false)
+  }
 
   return (
     <header style={{ background: "var(--header-bg)" }} className="text-white flex-shrink-0">
@@ -826,25 +840,102 @@ function Header({
       {/* CSVインポートパネル */}
       {showImportPanel && (
         <div className="px-6 py-4 border-b border-white/10" style={{ background: "rgba(255,255,255,0.04)" }}>
-          <div
-            onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={(e) => { e.preventDefault(); setIsDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed cursor-pointer flex items-center justify-center gap-4 py-5 transition-colors"
-            style={{ borderColor: isDragging ? "var(--accent)" : "rgba(255,255,255,0.2)" }}
-          >
-            <span className="text-2xl">📄</span>
-            <div>
-              <p className="text-sm" style={{ fontFamily: "'Noto Sans JP', sans-serif" }}>CSVファイルをドロップ、またはクリックして選択</p>
-              <button onClick={(e) => { e.stopPropagation(); downloadTemplate() }} className="font-mono text-[10px] mt-1 hover:underline" style={{ color: "#7ec8e3" }}>
-                ⬇ テンプレートをダウンロード
-              </button>
+          <div className="flex flex-col gap-4 max-w-2xl">
+
+            {/* ① 追加 / 上書き モード選択 */}
+            <div className="flex gap-2">
+              {(["append", "overwrite"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => { setImportMode(mode); setPendingData(null); setImportSuccess(null) }}
+                  className="flex-1 py-2.5 text-xs border transition-colors text-left px-4"
+                  style={{
+                    fontFamily: "'Noto Sans JP', sans-serif",
+                    borderColor: importMode === mode ? "white" : "rgba(255,255,255,0.2)",
+                    background: importMode === mode ? "rgba(255,255,255,0.08)" : "transparent",
+                    color: importMode === mode ? "white" : "rgba(255,255,255,0.5)",
+                  }}
+                >
+                  <span className="font-bold mr-2">
+                    {mode === "append" ? "📥 追加（アペンド）" : "🔄 上書き（リセット）"}
+                  </span>
+                  <span className="font-mono text-[10px] block mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    {mode === "append"
+                      ? `既存 ${chirashiList.length}件を残して新しいデータを末尾に追加。同じIDは上書き。`
+                      : "既存データをすべて削除し、新しいCSVの内容だけにする。"}
+                  </span>
+                </button>
+              ))}
             </div>
-            <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
+
+            {/* ② ドロップゾーン */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => { e.preventDefault(); setIsDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed cursor-pointer flex items-center justify-center gap-4 py-5 transition-colors"
+              style={{ borderColor: isDragging ? "var(--accent)" : "rgba(255,255,255,0.2)" }}
+            >
+              <span className="text-2xl">📄</span>
+              <div>
+                <p className="text-sm" style={{ fontFamily: "'Noto Sans JP', sans-serif" }}>
+                  CSVファイルをドロップ、またはクリックして選択
+                </p>
+                <button
+                  onClick={(e) => { e.stopPropagation(); downloadTemplate() }}
+                  className="font-mono text-[10px] mt-1 hover:underline"
+                  style={{ color: "#7ec8e3" }}
+                >
+                  ⬇ テンプレートをダウンロード
+                </button>
+              </div>
+              <input
+                ref={fileInputRef} type="file" accept=".csv" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = "" }}
+              />
+            </div>
+
+            {/* ③ 確認ステップ（ファイル読み込み後に表示） */}
+            {pendingData && (
+              <div className="border p-4 flex items-center justify-between gap-4"
+                style={{ borderColor: "rgba(255,200,0,0.4)", background: "rgba(255,200,0,0.06)" }}>
+                <div>
+                  <p className="text-sm font-bold" style={{ fontFamily: "'Noto Sans JP', sans-serif" }}>
+                    {pendingData.length}件のデータを読み込みました
+                  </p>
+                  <p className="font-mono text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>
+                    {importMode === "append"
+                      ? `既存 ${chirashiList.length}件 ＋ 新規 ${pendingData.length}件（同IDは上書き）→ 確定後に反映`
+                      : `既存 ${chirashiList.length}件 → 削除し、新規 ${pendingData.length}件のみに置き換え`}
+                  </p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => { setPendingData(null); setImportErrors([]) }}
+                    className="font-mono text-xs px-3 py-2 border border-white/20 hover:border-white/40 transition-colors text-white/50"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    onClick={confirmImport}
+                    className="font-mono text-xs px-4 py-2 text-white transition-colors"
+                    style={{ background: importMode === "append" ? "#2563eb" : "var(--accent)" }}
+                  >
+                    {importMode === "append" ? "追加する" : "上書きする"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* エラー・成功メッセージ */}
+            {importErrors.map((err, i) => (
+              <p key={i} className="font-mono text-[10px] text-red-300">{err}</p>
+            ))}
+            {importSuccess && (
+              <p className="font-mono text-[10px] text-green-300">✓ {importSuccess}</p>
+            )}
           </div>
-          {importErrors.map((e, i) => <p key={i} className="mt-1 font-mono text-[10px] text-red-300">{e}</p>)}
-          {importSuccess && <p className="mt-1 font-mono text-[10px] text-green-300">✓ {importSuccess}</p>}
         </div>
       )}
 
@@ -1124,7 +1215,22 @@ export default function App() {
         chirashiList={chirashiList}
         page={page}
         onNavigate={navigate}
-        onCsvImport={setChirashiList}
+        onCsvImport={(incoming, mode) => {
+          if (mode === "overwrite") {
+            setChirashiList(incoming)
+          } else {
+            // 追加：同じIDがあれば新しいデータで上書き、なければ末尾に追加
+            setChirashiList((prev) => {
+              const merged = [...prev]
+              for (const item of incoming) {
+                const idx = merged.findIndex((c) => c.id === item.id)
+                if (idx >= 0) merged[idx] = item  // 同IDは上書き
+                else merged.push(item)             // 新規は追加
+              }
+              return merged
+            })
+          }
+        }}
         showImportPanel={showImportPanel}
         setShowImportPanel={setShowImportPanel}
       />
