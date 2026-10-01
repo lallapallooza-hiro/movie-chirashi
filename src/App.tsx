@@ -1199,10 +1199,38 @@ function DetailView({
 // アプリ本体
 // ================================================================
 
+const STORAGE_KEY = "chirashi-collection-v1"
+
+function loadFromStorage(): Chirashi[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return SAMPLE
+    const parsed = JSON.parse(raw) as Chirashi[]
+    // 最低限の型チェック
+    if (!Array.isArray(parsed) || parsed.length === 0) return SAMPLE
+    return parsed
+  } catch {
+    return SAMPLE
+  }
+}
+
+function saveToStorage(list: Chirashi[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+  } catch {
+    // ストレージ容量超過などのエラーは無視
+  }
+}
+
 export default function App() {
-  const [chirashiList, setChirashiList] = useState<Chirashi[]>(SAMPLE)
+  const [chirashiList, setChirashiList] = useState<Chirashi[]>(loadFromStorage)
   const [page, setPage] = useState<Page>({ type: "main" })
   const [showImportPanel, setShowImportPanel] = useState(false)
+
+  // データが変わるたびに自動保存
+  useEffect(() => {
+    saveToStorage(chirashiList)
+  }, [chirashiList])
 
   const navigate = (p: Page) => {
     setPage(p)
@@ -1251,6 +1279,19 @@ export default function App() {
         <span>映画チラシ・コレクション</span>
         <span className="mx-3">·</span>
         <span>登録数: {chirashiList.length}件</span>
+        <span className="mx-3">·</span>
+        <span style={{ color: "var(--muted)" }}>💾 自動保存済み</span>
+        <button
+          onClick={() => {
+            if (window.confirm("すべてのデータをサンプルデータにリセットしますか？\n（この操作は元に戻せません）")) {
+              setChirashiList(SAMPLE)
+            }
+          }}
+          className="ml-4 hover:underline transition-colors"
+          style={{ color: "var(--muted)" }}
+        >
+          データをリセット
+        </button>
         <span className="ml-auto">© 2026</span>
       </footer>
     </div>
