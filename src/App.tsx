@@ -1199,46 +1199,68 @@ function DetailView({
 // アプリ本体
 // ================================================================
 
-const STORAGE_KEY = "chirashi-collection-v1"
-
-function loadFromStorage(): Chirashi[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return SAMPLE
-    const parsed = JSON.parse(raw) as Chirashi[]
-    // 最低限の型チェック
-    if (!Array.isArray(parsed) || parsed.length === 0) return SAMPLE
-    return parsed
-  } catch {
-    return SAMPLE
-  }
-}
-
-function saveToStorage(list: Chirashi[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
-  } catch {
-    // ストレージ容量超過などのエラーは無視
-  }
-}
+// ================================================================
+// マスターデータの読み込み
+// ================================================================
+// データの管理方法：
+//   public/chirashi-data.csv を編集して GitHub にプッシュするだけで
+//   Vercel が自動的に再デプロイし、世界中の誰でも最新データを見られる。
+// ================================================================
 
 export default function App() {
-  const [chirashiList, setChirashiList] = useState<Chirashi[]>(loadFromStorage)
+  const [chirashiList, setChirashiList] = useState<Chirashi[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [page, setPage] = useState<Page>({ type: "main" })
   const [showImportPanel, setShowImportPanel] = useState(false)
 
-  // データが変わるたびに自動保存
+  // 起動時に public/chirashi-data.csv を読み込む
   useEffect(() => {
-    saveToStorage(chirashiList)
-  }, [chirashiList])
+    fetch("/chirashi-data.csv")
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.text()
+      })
+      .then((text) => {
+        const { data, errors } = parseCsv(text)
+        if (data.length > 0) {
+          setChirashiList(data)
+        } else {
+          // CSVが空またはパース失敗 → サンプルで代替
+          setChirashiList(SAMPLE)
+          if (errors.length > 0) setLoadError(errors[0])
+        }
+      })
+      .catch(() => {
+        // ファイルが見つからない場合はサンプルデータを使用
+        setChirashiList(SAMPLE)
+      })
+      .finally(() => setLoading(false))
+  }, [])
 
   const navigate = (p: Page) => {
     setPage(p)
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
+  // 読み込み中
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg)" }}>
+      <div className="text-center">
+        <div className="font-serif text-4xl mb-4" style={{ color: "var(--border)" }}>映</div>
+        <p className="font-mono text-xs" style={{ color: "var(--muted)" }}>データを読み込んでいます...</p>
+      </div>
+    </div>
+  )
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "var(--bg)", color: "var(--fg)" }}>
+      {/* CSVロードエラー通知 */}
+      {loadError && (
+        <div className="px-6 py-2 font-mono text-[10px]" style={{ background: "#fff3cd", color: "#856404" }}>
+          ⚠ chirashi-data.csv の読み込みに問題があります: {loadError}（サンプルデータを表示中）
+        </div>
+      )}
       <Header
         chirashiList={chirashiList}
         page={page}
@@ -1280,18 +1302,7 @@ export default function App() {
         <span className="mx-3">·</span>
         <span>登録数: {chirashiList.length}件</span>
         <span className="mx-3">·</span>
-        <span style={{ color: "var(--muted)" }}>💾 自動保存済み</span>
-        <button
-          onClick={() => {
-            if (window.confirm("すべてのデータをサンプルデータにリセットしますか？\n（この操作は元に戻せません）")) {
-              setChirashiList(SAMPLE)
-            }
-          }}
-          className="ml-4 hover:underline transition-colors"
-          style={{ color: "var(--muted)" }}
-        >
-          データをリセット
-        </button>
+        <span style={{ color: "var(--muted)" }}>データ: chirashi-data.csv</span>
         <span className="ml-auto">© 2026</span>
       </footer>
     </div>
