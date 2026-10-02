@@ -1,0 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;700;900&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import 'tailwindcss';
+
+:root {
+  --bg: #f7f4ef;
+  --fg: #1a1410;
+  --accent: #c0392b;
+  --accent2: #2c3e50;
+  --border: #d9d0c4;
+  --muted: #8a7f74;
+  --card-bg: #ffffff;
+  --header-bg: #1a1410;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: 'Noto Sans JP', sans-serif;
+}
+
+.font-serif {
+  font-family: 'Noto Serif JP', serif;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* ライトボックス表示中・印刷時は画像モーダルのみ表示（他は非表示） */
+@media print {
+  body > * { display: none !important; }
+  .lightbox-modal { display: none !important; }
+}
