@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react"
+import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 
 // ================================================================
 // 型定義
@@ -32,9 +32,67 @@ type Chirashi = {
   addedAt: string          // 登録日（メイン画面のソートに使用）
 }
 
+type ChirashiGroup = {
+  title: string
+  representative: Chirashi
+  versions: Chirashi[]
+}
+
 // グリッド表示用：表面パネルの向きを返す
 function frontOrientation(c: Chirashi): Orientation {
   return c.panels[0]?.orientation ?? "portrait"
+}
+
+const japaneseCollator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" })
+
+function dateValue(value: string): number {
+  const match = value.trim().match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/)
+  if (!match) return 0
+  return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+}
+
+function formatDate(value: string): string {
+  const match = value.trim().match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/)
+  return match ? `${match[1]}年${Number(match[2])}月${Number(match[3])}日` : value
+}
+
+function sortChirashi(items: Chirashi[]): Chirashi[] {
+  return [...items].sort((a, b) =>
+    b.year - a.year
+    || japaneseCollator.compare(a.titleKana, b.titleKana)
+    || japaneseCollator.compare(a.title, b.title)
+    || japaneseCollator.compare(a.id, b.id)
+  )
+}
+
+function groupChirashi(items: Chirashi[]): ChirashiGroup[] {
+  const groups = new Map<string, Chirashi[]>()
+  for (const item of sortChirashi(items)) {
+    const versions = groups.get(item.title)
+    if (versions) versions.push(item)
+    else groups.set(item.title, [item])
+  }
+
+  return Array.from(groups, ([title, versions]) => {
+    const sortedVersions = [...versions].sort((a, b) =>
+      dateValue(b.addedAt) - dateValue(a.addedAt) || japaneseCollator.compare(b.id, a.id)
+    )
+    return { title, versions: sortedVersions, representative: sortedVersions[0] }
+  }).sort((a, b) =>
+    b.representative.year - a.representative.year
+    || japaneseCollator.compare(a.representative.titleKana, b.representative.titleKana)
+    || japaneseCollator.compare(a.title, b.title)
+  )
+}
+
+function normalizeSearchText(value: string): string {
+  return value
+    .normalize("NFKC")
+    .toLocaleLowerCase("ja")
+    .replace(/[\u30a1-\u30f6]/g, (character) =>
+      String.fromCharCode(character.charCodeAt(0) - 0x60)
+    )
+    .replace(/\s+/g, "")
 }
 
 // ページ遷移の状態
@@ -337,7 +395,7 @@ function parseCsv(text: string): { data: Chirashi[]; errors: string[] } {
       cast: (cols[idx("cast")] || "").split("/").map((s) => s.trim()).filter(Boolean),
       foldType: (cols[idx("foldtype")] as FoldType) || "single",
       panels,
-      addedAt: cols[idx("addedat")] || new Date().toISOString().split("T")[0],
+      addedAt: cols[idx("addedat")] || "",
     })
   }
   return { data, errors }
@@ -373,7 +431,11 @@ function downloadTemplate() {
 // チラシカードコンポーネント（メイン・タブ画面共通）
 // ================================================================
 
-function ChirashiCard({ c, onClick }: { c: Chirashi; onClick: () => void }) {
+function ChirashiCard({ c, versionCount, onClick }: {
+  c: Chirashi
+  versionCount: number
+  onClick: () => void
+}) {
   const isLandscape = frontOrientation(c) === "landscape"
   const front = c.panels[0]
 
@@ -414,6 +476,13 @@ function ChirashiCard({ c, onClick }: { c: Chirashi; onClick: () => void }) {
             </span>
           )}
         </div>
+        {versionCount > 1 && (
+          <div className="absolute top-1.5 right-1.5">
+            <span className="font-mono text-[9px] px-2 py-1 text-white shadow-sm" style={{ background: "var(--accent)" }}>
+              全{versionCount}種類
+            </span>
+          </div>
+        )}
         {/* パネル枚数バッジ */}
         {c.panels.length > 1 && (
           <div className="absolute bottom-1.5 right-1.5">
@@ -429,7 +498,10 @@ function ChirashiCard({ c, onClick }: { c: Chirashi; onClick: () => void }) {
       </div>
       <div className="mt-2">
         <p className="font-serif text-xs font-semibold leading-snug" style={{ color: "var(--fg)" }}>{c.title}</p>
-        <p className="font-mono text-[9px] mt-0.5" style={{ color: "var(--muted)" }}>{c.year}年 · {c.genre}</p>
+        <p className="font-mono text-[9px] mt-0.5" style={{ color: "var(--muted)" }}>
+          {c.year}年{c.genre ? ` · ${c.genre}` : ""}
+          {versionCount > 1 ? ` · ${versionCount}種類` : ""}
+        </p>
       </div>
     </div>
   )
@@ -994,29 +1066,210 @@ function Header({
 }
 
 // ================================================================
-// メイン画面（直近追加順）
+// 検索・年代フィルター
 // ================================================================
 
-function MainView({ chirashiList, onNavigate }: { chirashiList: Chirashi[]; onNavigate: (p: Page) => void }) {
-  const recent = [...chirashiList].sort((a, b) => b.addedAt.localeCompare(a.addedAt))
+function BrowseControls({
+  query,
+  onQueryChange,
+  decade,
+  onDecadeChange,
+  year,
+  onYearChange,
+  years,
+  resultCount,
+  totalCount,
+}: {
+  query: string
+  onQueryChange: (value: string) => void
+  decade: string
+  onDecadeChange: (value: string) => void
+  year: string
+  onYearChange: (value: string) => void
+  years: number[]
+  resultCount: number
+  totalCount: number
+}) {
+  const decades = Array.from(new Set(years.map((value) => Math.floor(value / 10) * 10))).sort((a, b) => b - a)
+  const visibleYears = decade === "all"
+    ? years
+    : years.filter((value) => Math.floor(value / 10) * 10 === Number(decade))
+  const hasFilter = query.trim() || decade !== "all" || year !== "all"
 
   return (
-    <div className="p-6">
-      <div className="flex items-baseline gap-3 mb-5">
-        <h1 className="font-serif text-xl font-bold">新着チラシ</h1>
+    <section className="border-b px-4 py-4 sm:px-6" style={{ background: "var(--card-bg)", borderColor: "var(--border)" }}>
+      <div className="mx-auto flex max-w-6xl flex-col gap-3 lg:flex-row lg:items-end">
+        <label className="min-w-0 flex-1">
+          <span className="mb-1.5 block font-mono text-[9px] tracking-widest" style={{ color: "var(--muted)" }}>
+            キーワード検索
+          </span>
+          <div className="flex h-11 items-center border transition-colors focus-within:border-[#1a1410]" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
+            <span className="px-3 font-mono text-xs" style={{ color: "var(--muted)" }}>検索</span>
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+              placeholder="タイトル・監督・出演者から検索"
+              className="h-full min-w-0 flex-1 bg-transparent pr-3 text-sm outline-none placeholder:text-[#8a7f74]"
+            />
+          </div>
+        </label>
+
+        <div className="grid grid-cols-2 gap-3 sm:flex">
+          <label className="sm:w-40">
+            <span className="mb-1.5 block font-mono text-[9px] tracking-widest" style={{ color: "var(--muted)" }}>
+              年代
+            </span>
+            <select
+              value={decade}
+              onChange={(event) => onDecadeChange(event.target.value)}
+              className="h-11 w-full border bg-transparent px-3 text-sm outline-none"
+              style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+            >
+              <option value="all">すべての年代</option>
+              {decades.map((value) => <option key={value} value={value}>{value}年代</option>)}
+            </select>
+          </label>
+          <label className="sm:w-36">
+            <span className="mb-1.5 block font-mono text-[9px] tracking-widest" style={{ color: "var(--muted)" }}>
+              公開年
+            </span>
+            <select
+              value={year}
+              onChange={(event) => onYearChange(event.target.value)}
+              className="h-11 w-full border bg-transparent px-3 text-sm outline-none disabled:opacity-50"
+              style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+            >
+              <option value="all">{decade === "all" ? "すべての公開年" : `${decade}年代すべて`}</option>
+              {visibleYears.map((value) => <option key={value} value={value}>{value}年</option>)}
+            </select>
+          </label>
+        </div>
+
+        <div className="flex h-11 items-center justify-between gap-4 lg:min-w-40 lg:justify-end">
+          <span className="font-mono text-[10px]" style={{ color: "var(--muted)" }}>
+            <strong className="text-sm" style={{ color: "var(--fg)" }}>{resultCount}</strong> / {totalCount}件
+          </span>
+          {hasFilter && (
+            <button
+              onClick={() => {
+                onQueryChange("")
+                onDecadeChange("all")
+                onYearChange("all")
+              }}
+              className="font-mono text-[10px] underline underline-offset-4 hover:opacity-60"
+              style={{ color: "var(--accent)" }}
+            >
+              条件をクリア
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function Pagination({ pageNum, totalPages, onChange }: {
+  pageNum: number
+  totalPages: number
+  onChange: (page: number) => void
+}) {
+  if (totalPages <= 1) return null
+  return (
+    <nav className="mt-10 flex items-center justify-center gap-3" aria-label="ページ送り">
+      <button
+        onClick={() => onChange(pageNum - 1)}
+        disabled={pageNum === 1}
+        className="border px-4 py-2 font-mono text-xs transition-colors hover:bg-[#1a1410] hover:text-white disabled:cursor-default disabled:opacity-30"
+        style={{ borderColor: "var(--border)" }}
+      >
+        ← 前へ
+      </button>
+      <span className="min-w-24 text-center font-mono text-xs" style={{ color: "var(--muted)" }}>
+        {pageNum} / {totalPages}
+      </span>
+      <button
+        onClick={() => onChange(pageNum + 1)}
+        disabled={pageNum === totalPages}
+        className="border px-4 py-2 font-mono text-xs transition-colors hover:bg-[#1a1410] hover:text-white disabled:cursor-default disabled:opacity-30"
+        style={{ borderColor: "var(--border)" }}
+      >
+        次へ →
+      </button>
+    </nav>
+  )
+}
+
+// ================================================================
+// メイン画面（通常時は登録日の最新1日、検索時は該当作品）
+// ================================================================
+
+function MainView({
+  chirashiList,
+  filterActive,
+  filterKey,
+  onNavigate,
+}: {
+  chirashiList: Chirashi[]
+  filterActive: boolean
+  filterKey: string
+  onNavigate: (p: Page) => void
+}) {
+  const [pageNum, setPageNum] = useState(1)
+  useEffect(() => setPageNum(1), [filterKey])
+
+  const latestItem = [...chirashiList]
+    .filter((item) => dateValue(item.addedAt) > 0)
+    .sort((a, b) => dateValue(b.addedAt) - dateValue(a.addedAt))[0]
+  const latestDate = latestItem?.addedAt ?? ""
+  const latestDateValue = dateValue(latestDate)
+  const visibleItems = filterActive
+    ? chirashiList
+    : latestDate
+      ? chirashiList.filter((item) => dateValue(item.addedAt) === latestDateValue)
+      : []
+  const groups = groupChirashi(visibleItems)
+  const totalPages = Math.max(1, Math.ceil(groups.length / ITEMS_PER_PAGE))
+  const safePage = Math.min(pageNum, totalPages)
+  const pageGroups = groups.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE)
+
+  return (
+    <div className="p-4 sm:p-6">
+      <div className="mb-5 flex flex-wrap items-baseline gap-3">
+        <h1 className="font-serif text-xl font-bold">{filterActive ? "検索結果" : "最新登録チラシ"}</h1>
         <span className="font-mono text-[10px]" style={{ color: "var(--muted)" }}>
-          登録が新しい順 · 全{chirashiList.length}件
+          {filterActive
+            ? `${groups.length}作品 · 公開年の新しい順`
+            : latestDate
+              ? `${formatDate(latestDate)}に登録 · ${groups.length}作品`
+              : "addedAtが入力された作品はまだありません"}
         </span>
       </div>
-      <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
-        {recent.map((c) => (
-          <ChirashiCard
-            key={c.id}
-            c={c}
-            onClick={() => onNavigate({ type: "detail", id: c.id, back: { type: "main" } })}
-          />
-        ))}
-      </div>
+
+      {groups.length === 0 ? (
+        <div className="flex min-h-64 flex-col items-center justify-center gap-3 border border-dashed px-6 text-center" style={{ borderColor: "var(--border)" }}>
+          <div className="font-serif text-4xl" style={{ color: "var(--border)" }}>無</div>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            {filterActive
+              ? "条件に一致する作品がありません"
+              : "最新表示にはCSVのaddedAt列へ登録日（例: 2026-03-08）を入力してください"}
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
+            {pageGroups.map((group) => (
+              <ChirashiCard
+                key={group.title}
+                c={group.representative}
+                versionCount={group.versions.length}
+                onClick={() => onNavigate({ type: "detail", id: group.representative.id, back: { type: "main" } })}
+              />
+            ))}
+          </div>
+          <Pagination pageNum={safePage} totalPages={totalPages} onChange={setPageNum} />
+        </>
+      )}
     </div>
   )
 }
@@ -1037,15 +1290,17 @@ function TabView({
   onNavigate: (p: Page) => void
 }) {
   const items = chirashiList.filter((c) => normalizeKana(c.titleKana) === kana)
-  const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE)
-  const pageItems = items.slice((pageNum - 1) * ITEMS_PER_PAGE, pageNum * ITEMS_PER_PAGE)
+  const groups = groupChirashi(items)
+  const totalPages = Math.max(1, Math.ceil(groups.length / ITEMS_PER_PAGE))
+  const safePage = Math.min(pageNum, totalPages)
+  const pageGroups = groups.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE)
 
   return (
     <div className="p-6">
       <div className="flex items-baseline gap-3 mb-5">
         <h1 className="font-serif text-xl font-bold">【{kana}】のチラシ</h1>
         <span className="font-mono text-[10px]" style={{ color: "var(--muted)" }}>
-          {items.length}件 · {pageNum}/{totalPages}ページ
+          {groups.length}作品 · {items.length}種類 · {safePage}/{totalPages}ページ
         </span>
       </div>
 
@@ -1057,50 +1312,20 @@ function TabView({
       ) : (
         <>
           <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
-            {pageItems.map((c) => (
+            {pageGroups.map((group) => (
               <ChirashiCard
-                key={c.id}
-                c={c}
-                onClick={() => onNavigate({ type: "detail", id: c.id, back: { type: "tab", kana, pageNum } })}
+                key={group.title}
+                c={group.representative}
+                versionCount={group.versions.length}
+                onClick={() => onNavigate({ type: "detail", id: group.representative.id, back: { type: "tab", kana, pageNum: safePage } })}
               />
             ))}
           </div>
-
-          {/* ページネーション */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-10">
-              <button
-                onClick={() => onNavigate({ type: "tab", kana, pageNum: pageNum - 1 })}
-                disabled={pageNum === 1}
-                className="font-mono text-xs px-4 py-2 border transition-colors disabled:opacity-30 disabled:cursor-default hover:enabled:bg-[#0a0a0a] hover:enabled:text-white"
-                style={{ borderColor: "var(--border)" }}
-              >
-                ← 前へ
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                <button
-                  key={n}
-                  onClick={() => onNavigate({ type: "tab", kana, pageNum: n })}
-                  className="font-mono text-xs w-9 h-9 border transition-colors"
-                  style={{
-                    borderColor: "var(--border)",
-                    background: n === pageNum ? "var(--fg)" : undefined,
-                    color: n === pageNum ? "white" : undefined,
-                  }}
-                >
-                  {n}
-                </button>
-              ))}
-              <button
-                onClick={() => onNavigate({ type: "tab", kana, pageNum: pageNum + 1 })}
-                disabled={pageNum === totalPages}
-                className="font-mono text-xs px-4 py-2 border transition-colors disabled:opacity-30 disabled:cursor-default hover:enabled:bg-[#0a0a0a] hover:enabled:text-white"
-                style={{ borderColor: "var(--border)" }}
-              >
-                次へ →
-              </button>
-            </div>
-          )}
+          <Pagination
+            pageNum={safePage}
+            totalPages={totalPages}
+            onChange={(nextPage) => onNavigate({ type: "tab", kana, pageNum: nextPage })}
+          />
         </>
       )}
     </div>
@@ -1122,7 +1347,19 @@ function DetailView({
   back: Page
   onNavigate: (p: Page) => void
 }) {
-  const c = chirashiList.find((item) => item.id === id)
+  const selected = chirashiList.find((item) => item.id === id)
+  const versions = useMemo(
+    () => selected
+      ? chirashiList
+        .filter((item) => item.title === selected.title)
+        .sort((a, b) => dateValue(b.addedAt) - dateValue(a.addedAt) || japaneseCollator.compare(b.id, a.id))
+      : [],
+    [chirashiList, selected?.title],
+  )
+  const [activeId, setActiveId] = useState(id)
+  useEffect(() => setActiveId(id), [id])
+  const c = versions.find((item) => item.id === activeId) ?? selected
+
   if (!c) return (
     <div className="p-10 text-center">
       <p style={{ color: "var(--muted)" }}>チラシが見つかりませんでした</p>
@@ -1151,6 +1388,12 @@ function DetailView({
           <span>{FOLD_LABEL[c.foldType]}</span>
           <span>·</span>
           <span>{c.panels.length}面</span>
+          {versions.length > 1 && (
+            <>
+              <span>·</span>
+              <span>全{versions.length}種類</span>
+            </>
+          )}
         </div>
         <h1 className="font-serif text-3xl font-bold mb-3">{c.title}</h1>
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
@@ -1161,17 +1404,54 @@ function DetailView({
         </div>
       </div>
 
+      {versions.length > 1 && (
+        <div className="mb-8 border-y py-4" style={{ borderColor: "var(--border)" }}>
+          <div className="mb-3 flex items-center justify-between gap-4">
+            <p className="font-mono text-[10px] tracking-widest" style={{ color: "var(--muted)" }}>
+              チラシの種類を切り替える
+            </p>
+            <span className="font-mono text-[9px]" style={{ color: "var(--muted)" }}>
+              {versions.findIndex((item) => item.id === c.id) + 1} / {versions.length}
+            </span>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {versions.map((version, index) => (
+              <button
+                key={version.id}
+                onClick={() => setActiveId(version.id)}
+                className="min-w-32 flex-shrink-0 border px-3 py-2.5 text-left transition-colors"
+                style={{
+                  borderColor: version.id === c.id ? "var(--fg)" : "var(--border)",
+                  background: version.id === c.id ? "var(--fg)" : "var(--card-bg)",
+                  color: version.id === c.id ? "white" : "var(--fg)",
+                }}
+              >
+                <span className="block font-serif text-xs font-bold">種類 {index + 1}</span>
+                <span className="mt-1 block font-mono text-[9px] opacity-60">
+                  {version.id}{version.addedAt ? ` · ${version.addedAt}` : ""}
+                </span>
+                <span className="mt-1 block font-mono text-[9px] opacity-60">
+                  {version.panels.length}面 · {FOLD_LABEL[version.foldType]}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 画像パネル表示 */}
       <div className="border-t pt-8" style={{ borderColor: "var(--border)" }}>
-        <PanelDisplay c={c} />
+        <PanelDisplay key={c.id} c={c} />
       </div>
 
       {/* 前後のチラシへのナビ */}
       {back.type === "tab" && (() => {
-        const siblings = chirashiList.filter((item) => normalizeKana(item.titleKana) === back.kana)
-        const idx = siblings.findIndex((item) => item.id === id)
-        const prev = siblings[idx - 1]
-        const next = siblings[idx + 1]
+        const siblings = groupChirashi(
+          chirashiList.filter((item) => normalizeKana(item.titleKana) === back.kana)
+        )
+        const idx = siblings.findIndex((group) => group.title === c.title)
+        const prev = siblings[idx - 1]?.representative
+        const next = siblings[idx + 1]?.representative
         return (
           <div className="flex justify-between mt-12 pt-6 border-t" style={{ borderColor: "var(--border)" }}>
             {prev ? (
@@ -1213,6 +1493,9 @@ export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [page, setPage] = useState<Page>({ type: "main" })
   const [showImportPanel, setShowImportPanel] = useState(false)
+  const [query, setQuery] = useState("")
+  const [decade, setDecade] = useState("all")
+  const [year, setYear] = useState("all")
 
   // 起動時に public/chirashi-data.csv を読み込む
   useEffect(() => {
@@ -1241,6 +1524,42 @@ export default function App() {
   const navigate = (p: Page) => {
     setPage(p)
     window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  const years = useMemo(
+    () => Array.from(new Set(chirashiList.map((item) => item.year))).sort((a, b) => b - a),
+    [chirashiList],
+  )
+  const filteredList = useMemo(() => {
+    const needle = normalizeSearchText(query)
+    return chirashiList.filter((item) => {
+      const matchesQuery = !needle || normalizeSearchText([
+        item.title,
+        item.titleKana,
+        item.director,
+        ...item.cast,
+      ].join(" ")).includes(needle)
+      const matchesYear = year !== "all"
+        ? item.year === Number(year)
+        : decade === "all" || Math.floor(item.year / 10) * 10 === Number(decade)
+      return matchesQuery && matchesYear
+    })
+  }, [chirashiList, query, decade, year])
+  const filterActive = Boolean(query.trim() || decade !== "all" || year !== "all")
+  const filterKey = `${query}\u0000${decade}\u0000${year}`
+
+  const updateQuery = (value: string) => {
+    setQuery(value)
+    setPage({ type: "main" })
+  }
+  const updateDecade = (value: string) => {
+    setDecade(value)
+    setYear("all")
+    setPage({ type: "main" })
+  }
+  const updateYear = (value: string) => {
+    setYear(value)
+    setPage({ type: "main" })
   }
 
   // 読み込み中
@@ -1285,12 +1604,31 @@ export default function App() {
         setShowImportPanel={setShowImportPanel}
       />
 
+      {page.type !== "detail" && (
+        <BrowseControls
+          query={query}
+          onQueryChange={updateQuery}
+          decade={decade}
+          onDecadeChange={updateDecade}
+          year={year}
+          onYearChange={updateYear}
+          years={years}
+          resultCount={filteredList.length}
+          totalCount={chirashiList.length}
+        />
+      )}
+
       <main className="flex-1">
         {page.type === "main" && (
-          <MainView chirashiList={chirashiList} onNavigate={navigate} />
+          <MainView
+            chirashiList={filteredList}
+            filterActive={filterActive}
+            filterKey={filterKey}
+            onNavigate={navigate}
+          />
         )}
         {page.type === "tab" && (
-          <TabView chirashiList={chirashiList} kana={page.kana} pageNum={page.pageNum} onNavigate={navigate} />
+          <TabView chirashiList={filteredList} kana={page.kana} pageNum={page.pageNum} onNavigate={navigate} />
         )}
         {page.type === "detail" && (
           <DetailView chirashiList={chirashiList} id={page.id} back={page.back} onNavigate={navigate} />
