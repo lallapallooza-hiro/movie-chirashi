@@ -44,6 +44,13 @@ function frontOrientation(c: Chirashi): Orientation {
   return c.panels[0]?.orientation ?? "portrait"
 }
 
+function optimizeCloudinaryUrl(url: string): string {
+  const uploadPath = "/image/upload/"
+  const optimizedUploadPath = `${uploadPath}f_auto,q_auto/`
+  if (!url.includes(uploadPath) || url.includes(optimizedUploadPath)) return url
+  return url.replace(uploadPath, optimizedUploadPath)
+}
+
 const japaneseCollator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" })
 
 function dateValue(value: string): number {
@@ -436,7 +443,7 @@ function ChirashiCard({ c, versionCount, onClick }: {
       >
         {front?.url ? (
           <img
-            src={front.url}
+            src={optimizeCloudinaryUrl(front.url)}
             alt={c.title}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
@@ -662,7 +669,7 @@ function Lightbox({ state, onClose }: { state: LightboxState; onClose: () => voi
           onContextMenu={(e) => e.preventDefault()}
         >
           <img
-            src={state.url}
+            src={optimizeCloudinaryUrl(state.url)}
             alt={state.label}
             draggable={false}
             style={{
@@ -719,7 +726,7 @@ function PanelItem({ panel, size = 140, onOpenLightbox }: {
       >
         {panel.url ? (
           <>
-            <img src={panel.url} alt={panel.label} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+            <img src={optimizeCloudinaryUrl(panel.url)} alt={panel.label} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
             {/* ホバー時に拡大アイコン */}
             {canExpand && (
               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
