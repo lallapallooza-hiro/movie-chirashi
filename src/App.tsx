@@ -92,7 +92,7 @@ function normalizeSearchText(value: string): string {
     .replace(/[\u30a1-\u30f6]/g, (character) =>
       String.fromCharCode(character.charCodeAt(0) - 0x60)
     )
-    .replace(/\s+/g, "")
+    .replace(/[・.=＝\s]+/g, "")
 }
 
 // ページ遷移の状態
