@@ -33,6 +33,7 @@ type Chirashi = {
 }
 
 type ChirashiGroup = {
+  key: string
   title: string
   representative: Chirashi
   versions: Chirashi[]
@@ -68,16 +69,22 @@ function sortChirashi(items: Chirashi[]): Chirashi[] {
 function groupChirashi(items: Chirashi[]): ChirashiGroup[] {
   const groups = new Map<string, Chirashi[]>()
   for (const item of sortChirashi(items)) {
-    const versions = groups.get(item.title)
+    const key = `${item.title}\u0000${item.year}`
+    const versions = groups.get(key)
     if (versions) versions.push(item)
-    else groups.set(item.title, [item])
+    else groups.set(key, [item])
   }
 
-  return Array.from(groups, ([title, versions]) => {
+  return Array.from(groups, ([key, versions]) => {
     const sortedVersions = [...versions].sort((a, b) =>
       dateValue(b.addedAt) - dateValue(a.addedAt) || japaneseCollator.compare(b.id, a.id)
     )
-    return { title, versions: sortedVersions, representative: sortedVersions[0] }
+    return {
+      key,
+      title: sortedVersions[0].title,
+      versions: sortedVersions,
+      representative: sortedVersions[0],
+    }
   }).sort((a, b) =>
     b.representative.year - a.representative.year
     || japaneseCollator.compare(a.representative.titleKana, b.representative.titleKana)
@@ -1087,7 +1094,7 @@ function MainView({
           <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
             {pageGroups.map((group) => (
               <ChirashiCard
-                key={group.title}
+                key={group.key}
                 c={group.representative}
                 versionCount={group.versions.length}
                 onClick={() => onNavigate({ type: "detail", id: group.representative.id, back: { type: "main" } })}
@@ -1141,7 +1148,7 @@ function TabView({
           <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
             {pageGroups.map((group) => (
               <ChirashiCard
-                key={group.title}
+                key={group.key}
                 c={group.representative}
                 versionCount={group.versions.length}
                 onClick={() => onNavigate({ type: "detail", id: group.representative.id, back: { type: "tab", kana, pageNum: safePage } })}
@@ -1178,10 +1185,10 @@ function DetailView({
   const versions = useMemo(
     () => selected
       ? chirashiList
-        .filter((item) => item.title === selected.title)
+        .filter((item) => item.title === selected.title && item.year === selected.year)
         .sort((a, b) => dateValue(b.addedAt) - dateValue(a.addedAt) || japaneseCollator.compare(b.id, a.id))
       : [],
-    [chirashiList, selected?.title],
+    [chirashiList, selected?.title, selected?.year],
   )
   const [activeId, setActiveId] = useState(id)
   useEffect(() => setActiveId(id), [id])
@@ -1275,7 +1282,9 @@ function DetailView({
         const siblings = groupChirashi(
           chirashiList.filter((item) => normalizeKana(item.titleKana) === back.kana)
         )
-        const idx = siblings.findIndex((group) => group.title === c.title)
+        const idx = siblings.findIndex(
+          (group) => group.title === c.title && group.representative.year === c.year
+        )
         const prev = siblings[idx - 1]?.representative
         const next = siblings[idx + 1]?.representative
         return (
