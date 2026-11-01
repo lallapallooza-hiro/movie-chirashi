@@ -473,7 +473,7 @@ function ChirashiCard({ c, versionCount, onClick }: {
       <div className="mt-2">
         <p className="font-serif text-xs font-semibold leading-snug" style={{ color: "var(--fg)" }}>{c.title}</p>
         <p className="font-mono text-[9px] mt-0.5" style={{ color: "var(--muted)" }}>
-          {c.year}年{c.genre ? ` · ${c.genre}` : ""}
+          {c.year}年
           {versionCount > 1 ? ` · ${versionCount}種類` : ""}
         </p>
       </div>
@@ -959,7 +959,7 @@ function BrowseControls({
           </label>
           <label className="sm:w-36">
             <span className="mb-1.5 block font-mono text-[9px] tracking-widest" style={{ color: "var(--muted)" }}>
-              公開年
+              製作年・公開年
             </span>
             <select
               value={year}
@@ -967,7 +967,7 @@ function BrowseControls({
               className="h-11 w-full border bg-transparent px-3 text-sm outline-none disabled:opacity-50"
               style={{ borderColor: "var(--border)", background: "var(--bg)" }}
             >
-              <option value="all">{decade === "all" ? "すべての公開年" : `${decade}年代すべて`}</option>
+              <option value="all">{decade === "all" ? "すべての製作年・公開年" : `${decade}年代すべて`}</option>
               {visibleYears.map((value) => <option key={value} value={value}>{value}年</option>)}
             </select>
           </label>
@@ -1066,7 +1066,7 @@ function MainView({
         <h1 className="font-serif text-xl font-bold">{filterActive ? "検索結果" : "最新登録チラシ"}</h1>
         <span className="font-mono text-[10px]" style={{ color: "var(--muted)" }}>
           {filterActive
-            ? `${groups.length}作品 · 公開年の新しい順`
+            ? `${groups.length}作品 · 製作年・公開年の新しい順`
             : latestDate
               ? `${formatDate(latestDate)}に登録 · ${groups.length}作品`
               : "addedAtが入力された作品はまだありません"}
@@ -1224,8 +1224,7 @@ function DetailView({
         </div>
         <h1 className="font-serif text-3xl font-bold mb-3">{c.title}</h1>
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-          <span><span className="font-mono text-[10px] mr-1.5" style={{ color: "var(--muted)" }}>公開年</span>{c.year}年</span>
-          <span><span className="font-mono text-[10px] mr-1.5" style={{ color: "var(--muted)" }}>ジャンル</span>{c.genre}</span>
+          <span><span className="font-mono text-[10px] mr-1.5" style={{ color: "var(--muted)" }}>製作年・公開年</span>{c.year}年</span>
           <span><span className="font-mono text-[10px] mr-1.5" style={{ color: "var(--muted)" }}>監督</span>{c.director}</span>
           <span><span className="font-mono text-[10px] mr-1.5" style={{ color: "var(--muted)" }}>出演</span>{c.cast.join("、")}</span>
         </div>
