@@ -30,6 +30,8 @@ type Chirashi = {
   foldType: FoldType
   panels: ChirashiPanel[]  // 画像パネル（表面が panels[0]）
   addedAt: string          // 登録日（メイン画面のソートに使用）
+  affiliateUrl1?: string
+  affiliateUrl2?: string
 }
 
 type ChirashiGroup = {
@@ -349,7 +351,8 @@ const FOLD_LABEL: Record<FoldType, string> = {
 // panel3_url, panel3_label, panel3_orient,
 // panel4_url, panel4_label, panel4_orient,
 // panel5_url, panel5_label, panel5_orient,
-// panel6_url, panel6_label, panel6_orient
+// panel6_url, panel6_label, panel6_orient,
+// affiliate_url1, affiliate_url2
 
 const MAX_PANELS = 6
 
@@ -410,6 +413,8 @@ function parseCsv(text: string): { data: Chirashi[]; errors: string[] } {
       foldType: (cols[idx("foldtype")] as FoldType) || "single",
       panels,
       addedAt: cols[idx("addedat")] || "",
+      affiliateUrl1: idx("affiliate_url1") >= 0 ? cols[idx("affiliate_url1")] || "" : "",
+      affiliateUrl2: idx("affiliate_url2") >= 0 ? cols[idx("affiliate_url2")] || "" : "",
     })
   }
   return { data, errors }
@@ -509,7 +514,19 @@ const ZOOM_MIN = 0.5
 const ZOOM_MAX = 5
 const ZOOM_STEP = 0.25
 
-function Lightbox({ state, onClose }: { state: LightboxState; onClose: () => void }) {
+function Lightbox({
+  state,
+  title,
+  affiliateUrl1,
+  affiliateUrl2,
+  onClose,
+}: {
+  state: LightboxState
+  title: string
+  affiliateUrl1?: string
+  affiliateUrl2?: string
+  onClose: () => void
+}) {
   const [zoom, setZoom] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const dragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null)
@@ -578,6 +595,10 @@ function Lightbox({ state, onClose }: { state: LightboxState; onClose: () => voi
 
   const isLandscape = state.orientation === "landscape"
   const isDragging = zoom > 1
+  const amazonUrl = affiliateUrl1?.trim()
+    || `https://www.amazon.co.jp/s?k=${encodeURIComponent(`${title} DVD`)}`
+  const mercariUrl = affiliateUrl2?.trim()
+    || `https://jp.mercari.com/search?keyword=${encodeURIComponent(`${title} チラシ`)}`
 
   return (
     <div
@@ -683,8 +704,29 @@ function Lightbox({ state, onClose }: { state: LightboxState; onClose: () => voi
         </div>
       </div>
 
+      {/* 関連商品リンク */}
+      <div className="w-full border-t border-white/10 px-4 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-3 flex-shrink-0"
+        style={{ background: "rgba(0,0,0,0.72)" }}>
+        <a
+          href={amazonUrl}
+          target="_blank"
+          rel="noopener noreferrer sponsored"
+          className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-neutral-950 bg-amber-400 hover:bg-amber-300 transition-colors"
+        >
+          Amazonでこの映画をチェック
+        </a>
+        <a
+          href={mercariUrl}
+          target="_blank"
+          rel="noopener noreferrer sponsored"
+          className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-white border border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 transition-colors"
+        >
+          メルカリ・他でチェック
+        </a>
+      </div>
+
       {/* 下部ヒント */}
-      <div className="w-full py-2 flex items-center justify-center gap-6 flex-shrink-0"
+      <div className="hidden sm:flex w-full py-2 items-center justify-center gap-6 flex-shrink-0"
         style={{ background: "rgba(0,0,0,0.4)" }}>
         {[
           ["ホイール", "ズーム"],
@@ -755,7 +797,13 @@ function PanelDisplay({ c }: { c: Chirashi }) {
 
   return (
     <>
-      <Lightbox state={lightbox} onClose={() => setLightbox(null)} />
+      <Lightbox
+        state={lightbox}
+        title={c.title}
+        affiliateUrl1={c.affiliateUrl1}
+        affiliateUrl2={c.affiliateUrl2}
+        onClose={() => setLightbox(null)}
+      />
 
       <div className="space-y-8">
         {/* 外面（表面・裏面） */}
