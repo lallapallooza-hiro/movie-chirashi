@@ -710,10 +710,10 @@ function Lightbox({
         style={{ background: "rgba(0,0,0,0.72)" }}>
         <a
           href={amazonUrl}
-          target={title ? "_blank" : undefined} // titleが無いときは別タブを開かない
-          rel="noopener noreferrer" // セキュリティとパフォーマンス向上のためnoreferrerも追加
-          onClick={(e) => {
-            if (!title) e.preventDefault(); // titleが無いときはクリックを無効化
+          target={title ? "_blank" : undefined}
+          rel="noopener noreferrer"
+          onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
+            if (!title) e.preventDefault();
           }}
           className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-neutral-950 bg-amber-400 hover:bg-amber-300 transition-colors"
         >
