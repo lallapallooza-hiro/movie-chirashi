@@ -595,7 +595,7 @@ function Lightbox({
   
 　const isLandscape = state.orientation === "landscape";
   const isDragging = zoom > 1;
-  const amazonUrl = title ? "https://amazon.co.jp" + encodeURIComponent(title || "") + "&tag=bqe07751-22" : "";
+  const amazonUrl = title ? "https://amazon.co.jp" + encodeURIComponent(title) + "&tag=bqe07751-22" : "";
 　const mercariUrl = affiliateUrl2?.trim() 
     || "https://mercari.com" + encodeURIComponent(title + " チラシ");
   
