@@ -592,12 +592,15 @@ function Lightbox({
   const resetZoom = () => { setZoom(1); setOffset({ x: 0, y: 0 }) }
 
   if (!state) return null
+  const isLandscape = state.orientation === "landscape";
+  const isDragging = zoom > 1;
 
-  const isLandscape = state.orientation === "landscape"
-  const isDragging = zoom > 1
-　const amazonUrl = "https://amazon.co.jp" + encodeURIComponent(title || "") + "&tag=bqe07751-22";
-　const mercariUrl = affiliateUrl2?.trim()
-    || `https://jp.mercari.com/search?keyword=${encodeURIComponent(`${title} チラシ`)}`
+  const amazonUrl = title 
+    ? "https://amazon.co.jp" + encodeURIComponent(title) + "&tag=bqe07751-22" 
+    : "";
+
+  const mercariUrl = affiliateUrl2?.trim() 
+    || "https://mercari.com" + encodeURIComponent(title + " チラシ");
 
   return (
     <div
