@@ -21,7 +21,7 @@ type ChirashiPanel = {
 
 type Chirashi = {
   id: string
-  title: string
+  title?: string
   titleKana: string
   year: number
   genre: string
@@ -595,10 +595,11 @@ function Lightbox({
 
   const isLandscape = state.orientation === "landscape"
   const isDragging = zoom > 1
-  const amazonUrl = affiliateUrl1?.trim()
-    || `https://www.amazon.co.jp/s?k=${encodeURIComponent(`${title} DVD`)}`
-  const mercariUrl = affiliateUrl2?.trim()
-    || `https://jp.mercari.com/search?keyword=${encodeURIComponent(`${title} チラシ`)}`
+  const safeTitle = title?.trim()
+  const amazonUrl = safeTitle ? affiliateUrl1?.trim() || "https://amazon.co.jp/s?k=" + encodeURIComponent(safeTitle + " DVD") + "&tag=bqe07751-22" : ""
+  const mercariUrl = safeTitle
+    ? affiliateUrl2?.trim() || `https://jp.mercari.com/search?keyword=${encodeURIComponent(`${safeTitle} チラシ`)}`
+    : ""
 
   return (
     <div
@@ -707,22 +708,40 @@ function Lightbox({
       {/* 関連商品リンク */}
       <div className="w-full border-t border-white/10 px-4 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-3 flex-shrink-0"
         style={{ background: "rgba(0,0,0,0.72)" }}>
-        <a
-          href={amazonUrl}
-          target="_blank"
-          rel="noopener noreferrer sponsored"
-          className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-neutral-950 bg-amber-400 hover:bg-amber-300 transition-colors"
-        >
-          Amazonでこの映画をチェック
-        </a>
-        <a
-          href={mercariUrl}
-          target="_blank"
-          rel="noopener noreferrer sponsored"
-          className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-white border border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 transition-colors"
-        >
-          メルカリ・他でチェック
-        </a>
+        {safeTitle ? (
+          <a
+            href={amazonUrl}
+            target="_blank"
+            rel="noopener noreferrer sponsored"
+            className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-neutral-950 bg-amber-400 hover:bg-amber-300 transition-colors"
+          >
+            Amazonでこの映画をチェック
+          </a>
+        ) : (
+          <span
+            aria-disabled="true"
+            className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-neutral-950 bg-amber-400 hover:bg-amber-300 transition-colors"
+          >
+            Amazonでこの映画をチェック
+          </span>
+        )}
+        {safeTitle ? (
+          <a
+            href={mercariUrl}
+            target="_blank"
+            rel="noopener noreferrer sponsored"
+            className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-white border border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 transition-colors"
+          >
+            メルカリ・他でチェック
+          </a>
+        ) : (
+          <span
+            aria-disabled="true"
+            className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-white border border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 transition-colors"
+          >
+            メルカリ・他でチェック
+          </span>
+        )}
       </div>
 
       {/* 下部ヒント */}
