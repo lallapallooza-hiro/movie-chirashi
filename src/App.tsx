@@ -596,8 +596,9 @@ function Lightbox({
   const isLandscape = state.orientation === "landscape"
   const isDragging = zoom > 1
 　const amazonUrl = title 
-  ? `https://amazon.co.jp{encodeURIComponent(title)}&tag=bqe07751-22`
-  : '';
+  ? "https://amazon.co.jp" + encodeURIComponent(title) + "&tag=bqe07751-22"
+  : "";
+
   const mercariUrl = affiliateUrl2?.trim()
     || `https://jp.mercari.com/search?keyword=${encodeURIComponent(`${title} チラシ`)}`
 
@@ -708,14 +709,22 @@ function Lightbox({
       {/* 関連商品リンク */}
       <div className="w-full border-t border-white/10 px-4 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-3 flex-shrink-0"
         style={{ background: "rgba(0,0,0,0.72)" }}>
+        title ? (
         <a
-          href={amazonUrl || undefined}
-          target={title ? "_blank" : undefined}
+          href={amazonUrl}
+          target="_blank"
           rel="noopener noreferrer"
-          className={`min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-neutral-950 bg-amber-400 hover:bg-amber-300 transition-colors ${!title ? 'pointer-events-none opacity-50' : ''}`}
+          className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-neutral-950 bg-amber-400 hover:bg-amber-300 transition-colors"
         >
           Amazonでこの映画をチェック
-        </a> 
+        </a>
+      ) : (
+        <span
+          className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-neutral-950 bg-amber-400 opacity-50 pointer-events-none transition-colors"
+        >
+          Amazonでこの映画をチェック
+        </span>
+      )
         <a
           href={mercariUrl}
           target="_blank"
