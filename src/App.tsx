@@ -709,7 +709,7 @@ function Lightbox({
         <a
           href={amazonUrl}
           target="_blank"
-          rel="noopener noreferrer sponsored"
+          rel="noopener"
           className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-neutral-950 bg-amber-400 hover:bg-amber-300 transition-colors"
         >
           Amazonでこの映画をチェック
