@@ -595,7 +595,9 @@ function Lightbox({
 
   const isLandscape = state.orientation === "landscape"
   const isDragging = zoom > 1
-  const amazonUrl = `https://amazon.co.jp{encodeURIComponent(title || '')}&tag=bqe07751-22`;
+  const amazonUrl = title 
+  ? `https://amazon.co.jp{encodeURIComponent(title)}&tag=bqe07751-22`
+  : '#'; // titleが空のときは暫定の動きにする（またはボタン自体を非表示にする）
   const mercariUrl = affiliateUrl2?.trim()
     || `https://jp.mercari.com/search?keyword=${encodeURIComponent(`${title} チラシ`)}`
 
@@ -708,12 +710,15 @@ function Lightbox({
         style={{ background: "rgba(0,0,0,0.72)" }}>
         <a
           href={amazonUrl}
-          target="_blank"
-          rel="noopener"
+          target={title ? "_blank" : undefined} // titleが無いときは別タブを開かない
+          rel="noopener noreferrer" // セキュリティとパフォーマンス向上のためnoreferrerも追加
+          onClick={(e) => {
+            if (!title) e.preventDefault(); // titleが無いときはクリックを無効化
+          }}
           className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-neutral-950 bg-amber-400 hover:bg-amber-300 transition-colors"
         >
           Amazonでこの映画をチェック
-        </a>
+        </a> 
         <a
           href={mercariUrl}
           target="_blank"
