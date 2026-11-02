@@ -707,7 +707,7 @@ function Lightbox({
       <div className="w-full border-t border-white/10 px-4 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-3 flex-shrink-0"
         style={{ background: "rgba(0,0,0,0.72)" }}>
         <a
-          href={amazonUrl}
+          href={amazonUrl=`https://amazon.co.jp{encodeURIComponent(title || '')}&tag=bqe07751-22`}
           target="_blank"
           rel="noopener"
           className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-neutral-950 bg-amber-400 hover:bg-amber-300 transition-colors"
