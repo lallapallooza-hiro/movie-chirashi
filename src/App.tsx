@@ -1117,7 +1117,10 @@ function Pagination({ pageNum, totalPages, onChange }: {
         {pageNum} / {totalPages}
       </span>
       <button
-        onClick={() => onChange(pageNum + 1)}
+        onClick={() => {
+          onChange(pageNum + 1)
+          window.scrollTo({ top: 0, behavior: "smooth" })
+        }}
         disabled={pageNum === totalPages}
         className="border px-4 py-2 font-mono text-xs transition-colors hover:bg-[#1a1410] hover:text-white disabled:cursor-default disabled:opacity-30"
         style={{ borderColor: "var(--border)" }}
@@ -1228,7 +1231,7 @@ function TabView({
   chirashiList: Chirashi[]
   kana: string
   pageNum: number
-  onNavigate: (p: Page) => void
+  onNavigate: (p: Page, scrollToTop?: boolean) => void
 }) {
   const items = chirashiList.filter((c) => normalizeKana(c.titleKana) === kana)
   const groups = groupChirashi(items)
@@ -1265,7 +1268,7 @@ function TabView({
           <Pagination
             pageNum={safePage}
             totalPages={totalPages}
-            onChange={(nextPage) => onNavigate({ type: "tab", kana, pageNum: nextPage })}
+            onChange={(nextPage) => onNavigate({ type: "tab", kana, pageNum: nextPage }, false)}
           />
         </>
       )}
@@ -1466,9 +1469,9 @@ export default function App() {
       .finally(() => setLoading(false))
   }, [])
 
-  const navigate = (p: Page) => {
+  const navigate = (p: Page, scrollToTop = true) => {
     setPage(p)
-    window.scrollTo({ top: 0, behavior: "smooth" })
+    if (scrollToTop) window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
   const years = useMemo(
