@@ -1163,6 +1163,19 @@ function MainView({
 
   return (
     <div className="p-4 sm:p-6">
+      {!filterActive && (
+        <div
+          className="mb-6 border-l-2 px-4 py-3"
+          style={{ borderColor: "var(--accent)", background: "var(--card-bg)" }}
+        >
+          <p className="font-serif text-sm leading-relaxed">
+            ようこそ！眺めるだけで観た気になる映画チラシをゆっくりと見ていってください。
+          </p>
+          <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+            今後もコツコツと増やしていく予定です。
+          </p>
+        </div>
+      )}
       <div className="mb-5 flex flex-wrap items-baseline gap-3">
         <h1 className="font-serif text-xl font-bold">{filterActive ? "検索結果" : "最新登録チラシ"}</h1>
         <span className="font-mono text-[10px]" style={{ color: "var(--muted)" }}>
