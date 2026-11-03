@@ -6,6 +6,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 
 type Orientation = "portrait" | "landscape"  // 縦向き / 横向き
 
+// 折り種類 → 表示するパネル数が変わる
 type FoldType =
   | "single"    // 折りなし（表のみ、または表+裏）
   | "bifold"    // 2つ折り（表・裏・中面×2）
@@ -27,8 +28,8 @@ type Chirashi = {
   director: string
   cast: string[]
   foldType: FoldType
-  panels: ChirashiPanel[]  // 画像パネル
-  addedAt: string          // 登録日
+  panels: ChirashiPanel[]  // 画像パネル（表面が panels[0]）
+  addedAt: string          // 登録日（メイン画面のソートに使用）
   affiliateUrl1?: string
   affiliateUrl2?: string
 }
@@ -40,6 +41,7 @@ type ChirashiGroup = {
   versions: Chirashi[]
 }
 
+// グリッド表示用：表面パネルの向きを返す
 function frontOrientation(c: Chirashi): Orientation {
   return c.panels[0]?.orientation ?? "portrait"
 }
@@ -131,11 +133,17 @@ function normalizeSearchText(value: string): string {
     .replace(/[・.=＝\s]+/g, "")
 }
 
+// ページ遷移の状態
 type Page =
   | { type: "main" }
   | { type: "tab"; kana: string; pageNum: number }
   | { type: "detail"; id: string; back: Page }
 
+// ================================================================
+// サンプルデータ
+// ================================================================
+
+// パネルを作るヘルパー（向きごとにURLサイズを自動調整）
 function p(url: string, label: string, orientation: Orientation = "portrait"): ChirashiPanel {
   const size = orientation === "landscape" ? "w=560&h=400" : "w=280&h=400"
   const fullUrl = url.includes("?") ? url.replace(/w=\d+&h=\d+/, size) : `${url}?${size}&fit=crop&auto=format`
@@ -143,6 +151,7 @@ function p(url: string, label: string, orientation: Orientation = "portrait"): C
 }
 
 const SAMPLE: Chirashi[] = [
+  // ── 縦縦パターン（表:縦 / 裏:縦）──────────────────────────
   {
     id: "C-001",
     title: "夜霧の追跡者",
@@ -150,11 +159,12 @@ const SAMPLE: Chirashi[] = [
     year: 1974, genre: "アクション", director: "鈴木 一郎", cast: ["田中 健", "山田 花子"],
     foldType: "single",
     panels: [
-      p("https://unsplash.com", "表面", "portrait"),
-      p("https://unsplash.com?crop=entropy", "裏面", "portrait"),
+      p("https://images.unsplash.com/photo-1769265095585-44764352cb77", "表面", "portrait"),
+      p("https://images.unsplash.com/photo-1769265095585-44764352cb77?crop=entropy", "裏面", "portrait"),
     ],
     addedAt: "2024-06-10",
   },
+  // ── 縦横パターン（表:縦 / 裏:横）──────────────────────────
   {
     id: "C-002",
     title: "明日へのタンゴ",
@@ -162,26 +172,170 @@ const SAMPLE: Chirashi[] = [
     year: 1988, genre: "ロマンス", director: "佐藤 美恵", cast: ["木村 太郎", "伊藤 京子"],
     foldType: "bifold",
     panels: [
-      p("https://unsplash.com", "表面", "portrait"),
-      p("https://unsplash.com", "裏面", "landscape"),
-      p("https://unsplash.com", "中面A", "portrait"),
-      p("https://unsplash.com", "中面B", "portrait"),
+      p("https://images.unsplash.com/photo-1689045170733-bec91f0812a0", "表面", "portrait"),  // 縦
+      p("https://images.unsplash.com/photo-1704721211126-f67684d8e0c9", "裏面", "landscape"), // 横
+      p("https://images.unsplash.com/photo-1678694176437-a71b3feaf895", "中面A", "portrait"),
+      p("https://images.unsplash.com/photo-1580940843810-6ac02e96a2eb", "中面B", "portrait"),
     ],
     addedAt: "2024-06-08",
   },
+  // ── 横横パターン（表:横 / 裏:横）──────────────────────────
+  {
+    id: "C-003",
+    title: "深海の宴",
+    titleKana: "シ",
+    year: 1963, genre: "ホラー", director: "渡辺 剛", cast: ["高橋 恵子", "中村 光"],
+    foldType: "single",
+    panels: [
+      p("https://images.unsplash.com/photo-1704721211126-f67684d8e0c9", "表面", "landscape"),
+      p("https://images.unsplash.com/photo-1704721211126-f67684d8e0c9?crop=entropy", "裏面", "landscape"),
+    ],
+    addedAt: "2024-06-07",
+  },
+  // ── 横縦パターン（表:横 / 裏:縦）──────────────────────────
+  {
+    id: "C-004",
+    title: "遥かなる峠",
+    titleKana: "ハ",
+    year: 1952, genre: "ドラマ", director: "小林 正道", cast: ["吉田 義男", "松本 千代"],
+    foldType: "quadfold",
+    panels: [
+      p("https://images.unsplash.com/photo-1678694176437-a71b3feaf895", "表面", "landscape"), // 横
+      p("https://images.unsplash.com/photo-1678694176437-a71b3feaf895?crop=entropy", "裏面", "portrait"), // 縦
+      p("https://images.unsplash.com/photo-1580940843810-6ac02e96a2eb", "中面A", "portrait"),
+      p("https://images.unsplash.com/photo-1769321309399-38d9eda18370", "中面B", "portrait"),
+      p("https://images.unsplash.com/photo-1585667055741-7a94f3397509", "中面C", "portrait"),
+      p("https://images.unsplash.com/photo-1602421311752-e3b1a31b4384", "中面D", "portrait"),
+    ],
+    addedAt: "2024-06-05",
+  },
+  {
+    id: "C-005",
+    title: "紅い風の季節",
+    titleKana: "ア",
+    year: 1971, genre: "ドラマ", director: "加藤 順子", cast: ["前田 誠", "坂本 麻衣"],
+    foldType: "single",
+    panels: [p("https://images.unsplash.com/photo-1580940843810-6ac02e96a2eb", "表面", "portrait")],
+    addedAt: "2024-06-04",
+  },
+  {
+    id: "C-006",
+    title: "Galaxy Express",
+    titleKana: "G",
+    year: 1982, genre: "SF", director: "藤田 隆", cast: ["西村 洋介", "林 美穂"],
+    foldType: "bifold",
+    panels: [
+      p("https://images.unsplash.com/photo-1769321309399-38d9eda18370", "表面", "landscape"),
+      p("https://images.unsplash.com/photo-1769321309399-38d9eda18370?crop=entropy", "裏面", "landscape"),
+      p("https://images.unsplash.com/photo-1532680678473-a16f2cda8e43", "中面（展開）", "landscape"),
+    ],
+    addedAt: "2024-06-03",
+  },
+  {
+    id: "C-007",
+    title: "笑えない天才",
+    titleKana: "ワ",
+    year: 1995, genre: "コメディ", director: "石田 幸一", cast: ["岡田 達也", "吉川 恵理"],
+    foldType: "trifold",
+    panels: [
+      p("https://images.unsplash.com/photo-1585667055741-7a94f3397509", "表面", "portrait"),
+      p("https://images.unsplash.com/photo-1585667055741-7a94f3397509?crop=entropy", "裏面", "portrait"),
+      p("https://images.unsplash.com/photo-1602421311752-e3b1a31b4384", "中面A", "portrait"),
+      p("https://images.unsplash.com/photo-1706955306571-4d990815d549", "中面B", "portrait"),
+      p("https://images.unsplash.com/photo-1569793667639-dae11573b34f", "中面C", "portrait"),
+    ],
+    addedAt: "2024-06-02",
+  },
+  {
+    id: "C-008",
+    title: "黒い太陽",
+    titleKana: "ク",
+    year: 1966, genre: "アクション", director: "中島 清二", cast: ["斎藤 武", "田村 静"],
+    foldType: "single",
+    panels: [
+      p("https://images.unsplash.com/photo-1602421311752-e3b1a31b4384", "表面", "portrait"),
+      p("https://images.unsplash.com/photo-1602421311752-e3b1a31b4384?crop=entropy", "裏面", "portrait"),
+    ],
+    addedAt: "2024-05-30",
+  },
+  {
+    id: "C-009",
+    title: "東京漂流",
+    titleKana: "ト",
+    year: 2003, genre: "ドラマ", director: "村田 信一", cast: ["大塚 美里", "小川 健"],
+    foldType: "bifold",
+    panels: [
+      p("https://images.unsplash.com/photo-1706955306571-4d990815d549", "表面", "portrait"),
+      p("https://images.unsplash.com/photo-1706955306571-4d990815d549?crop=entropy", "裏面", "portrait"),
+      p("https://images.unsplash.com/photo-1784034292926-c4bb77283a0e", "中面A", "portrait"),
+      p("https://images.unsplash.com/photo-1771517358779-b2f515da1894", "中面B", "portrait"),
+    ],
+    addedAt: "2024-05-28",
+  },
+  {
+    id: "C-010",
+    title: "Midnight Rain",
+    titleKana: "M",
+    year: 1979, genre: "ロマンス", director: "安田 豊", cast: ["山本 敦子", "清水 隆"],
+    foldType: "single",
+    panels: [p("https://images.unsplash.com/photo-1569793667639-dae11573b34f", "表面", "landscape")],
+    addedAt: "2024-05-25",
+  },
+  {
+    id: "C-011",
+    title: "真夜中の証人",
+    titleKana: "マ",
+    year: 1958, genre: "ドラマ", director: "橋本 義雄", cast: ["三浦 源次郎", "川本 葉子"],
+    foldType: "single",
+    panels: [
+      p("https://images.unsplash.com/photo-1771517358779-b2f515da1894", "表面", "portrait"),
+      p("https://images.unsplash.com/photo-1771517358779-b2f515da1894?crop=entropy", "裏面", "portrait"),
+    ],
+    addedAt: "2024-05-20",
+  },
+  {
+    id: "C-012",
+    title: "炎の道場",
+    titleKana: "ホ",
+    year: 1985, genre: "アクション", director: "黒田 勝男", cast: ["松田 勇二", "大野 さやか"],
+    foldType: "bifold",
+    panels: [
+      p("https://images.unsplash.com/photo-1784034292926-c4bb77283a0e", "表面", "portrait"),
+      p("https://images.unsplash.com/photo-1784034292926-c4bb77283a0e?crop=entropy", "裏面", "portrait"),
+      p("https://images.unsplash.com/photo-1497604401993-f2e922e5cb0a", "中面A", "portrait"),
+      p("https://images.unsplash.com/photo-1463130456064-77fda7f96d6b", "中面B", "portrait"),
+    ],
+    addedAt: "2024-05-18",
+  },
 ]
+
+// ================================================================
+// 定数
+// ================================================================
 
 const ITEMS_PER_PAGE = 20
 
+// ================================================================
+// 濁音・半濁音 → 清音に正規化するマップ
+// 例: プ→フ、ガ→カ、バ→ハ
+// titleKana に「プ」と入力されていても「フ」行に表示される
+// ================================================================
 const DAKUTEN_MAP: Record<string, string> = {
+  // ガ行 → カ行
   ガ:"カ", ギ:"キ", グ:"ク", ゲ:"ケ", ゴ:"コ",
+  // ザ行 → サ行
   ザ:"サ", ジ:"シ", ズ:"ス", ゼ:"セ", ゾ:"ソ",
+  // ダ行 → タ行
   ダ:"タ", ヂ:"チ", ヅ:"ツ", デ:"テ", ド:"ト",
+  // バ行 → ハ行
   バ:"ハ", ビ:"ヒ", ブ:"フ", ベ:"ヘ", ボ:"ホ",
+  // パ行（半濁音）→ ハ行
   パ:"ハ", ピ:"ヒ", プ:"フ", ペ:"ヘ", ポ:"ホ",
+  // ヴ → ア行（ウ）
   ヴ:"ウ",
 }
 
+// titleKana を五十音インデックスの基本文字に変換する
 function normalizeKana(kana: string): string {
   return DAKUTEN_MAP[kana] ?? kana
 }
@@ -207,6 +361,20 @@ const FOLD_LABEL: Record<FoldType, string> = {
   trifold: "3つ折り",
   quadfold: "4つ折り",
 }
+
+// ================================================================
+// CSVユーティリティ
+// ================================================================
+
+// CSV列の仕様（パネルは最大6面まで対応）
+// id, title, titleKana, year, genre, director, cast, foldType, addedAt,
+// panel1_url, panel1_label, panel1_orient,
+// panel2_url, panel2_label, panel2_orient,
+// panel3_url, panel3_label, panel3_orient,
+// panel4_url, panel4_label, panel4_orient,
+// panel5_url, panel5_label, panel5_orient,
+// panel6_url, panel6_label, panel6_orient,
+// affiliate_url1, affiliate_url2
 
 const MAX_PANELS = 6
 
@@ -238,19 +406,23 @@ function parseCsv(text: string): { data: Chirashi[]; errors: string[] } {
     const year = parseInt(cols[idx("year")])
     if (isNaN(year)) { errors.push(`${i + 1}行目: yearが数字ではありません`); continue }
 
+    // パネル列を読み取る（panel1_url〜panel6_url）
     const panels: ChirashiPanel[] = []
     for (let n = 1; n <= MAX_PANELS; n++) {
       const urlCol = idx(`panel${n}_url`)
       const labelCol = idx(`panel${n}_label`)
       const orientCol = idx(`panel${n}_orient`)
       const url = urlCol >= 0 ? (cols[urlCol] || "") : ""
-      if (!url) break
+      if (!url) break  // URLが空なら以降のパネルはスキップ
       const defaultLabels = ["表面", "裏面", "中面A", "中面B", "中面C", "中面D"]
       const label = labelCol >= 0 ? (cols[labelCol] || defaultLabels[n - 1]) : defaultLabels[n - 1]
       const orient = (orientCol >= 0 ? cols[orientCol] : "") as Orientation
       panels.push({ url, label, orientation: orient === "landscape" ? "landscape" : "portrait" })
     }
-    if (panels.length === 0) continue
+    if (panels.length === 0) {
+      errors.push(`${i + 1}行目: panel1_urlが空です（スキップ）`)
+      continue
+    }
 
     data.push({
       id: cols[idx("id")] || `ROW-${i}`,
@@ -269,9 +441,11 @@ function parseCsv(text: string): { data: Chirashi[]; errors: string[] } {
   }
   return { data, errors }
 }
+
 // ================================================================
 // チラシカードコンポーネント（メイン・タブ画面共通）
 // ================================================================
+
 function ChirashiCard({ c, versionCount, onClick }: {
   c: Chirashi
   versionCount: number
@@ -281,57 +455,111 @@ function ChirashiCard({ c, versionCount, onClick }: {
   const front = c.panels[0]
 
   return (
-    <div className={`cursor-pointer group ${isLandscape ? "col-span-2" : ""}`} onClick={onClick}>
-      <div className="relative overflow-hidden" style={{ aspectRatio: isLandscape ? "4/3" : "2/3", background: "#e8e0d4" }}>
+    // 横向きは2列分（col-span-2）、高さは縦向きと統一
+    <div
+      className={`cursor-pointer group ${isLandscape ? "col-span-2" : ""}`}
+      onClick={onClick}
+    >
+      <div
+        className="relative overflow-hidden"
+        style={{
+          // 縦向き: 2:3、横向き: 4:3（2列分の幅に合わせた比率）
+          aspectRatio: isLandscape ? "4/3" : "2/3",
+          background: "#e8e0d4",
+        }}
+      >
         {front?.url ? (
-          <img src={optimizeCloudinaryUrl(front.url)} alt={c.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+          <img
+            src={optimizeCloudinaryUrl(front.url)}
+            alt={c.title}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-3">
             <span className="font-serif text-2xl" style={{ color: "var(--border)" }}>映</span>
             <p className="font-serif text-[10px] text-center leading-snug" style={{ color: "var(--muted)" }}>{c.title}</p>
           </div>
         )}
+        {/* バッジ類 */}
         <div className="absolute top-1.5 left-1.5 flex gap-1">
-          {isLandscape && <span className="font-mono text-[8px] px-1 py-0.5 bg-black/60 text-white">横</span>}
-          {c.foldType !== "single" && <span className="font-mono text-[8px] px-1 py-0.5 bg-black/60 text-white">{FOLD_LABEL[c.foldType]}</span>}
+          {isLandscape && (
+            <span className="font-mono text-[8px] px-1 py-0.5 bg-black/60 text-white">横</span>
+          )}
+          {c.foldType !== "single" && (
+            <span className="font-mono text-[8px] px-1 py-0.5 bg-black/60 text-white">
+              {FOLD_LABEL[c.foldType]}
+            </span>
+          )}
         </div>
         {versionCount > 1 && (
           <div className="absolute top-1.5 right-1.5">
-            <span className="font-mono text-[9px] px-2 py-1 text-white shadow-sm" style={{ background: "var(--accent)" }}>全{versionCount}種類</span>
+            <span className="font-mono text-[9px] px-2 py-1 text-white shadow-sm" style={{ background: "var(--accent)" }}>
+              全{versionCount}種類
+            </span>
           </div>
         )}
+        {/* パネル枚数バッジ */}
         {c.panels.length > 1 && (
           <div className="absolute bottom-1.5 right-1.5">
-            <span className="font-mono text-[8px] px-1.5 py-0.5 text-white" style={{ background: "var(--accent)" }}>{c.panels.length}面</span>
+            <span className="font-mono text-[8px] px-1.5 py-0.5 text-white" style={{ background: "var(--accent)" }}>
+              {c.panels.length}面
+            </span>
           </div>
         )}
+        {/* ホバー時タイトル */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end p-2">
+          <p className="font-serif text-[10px] text-white font-bold leading-tight">{c.title}</p>
+        </div>
       </div>
       <div className="mt-2">
         <p className="font-serif text-xs font-semibold leading-snug" style={{ color: "var(--fg)" }}>{c.title}</p>
-        <p className="font-mono text-[9px] mt-0.5" style={{ color: "var(--muted)" }}>{c.year}年{versionCount > 1 ? ` · ${versionCount}種類` : ""}</p>
+        <p className="font-mono text-[9px] mt-0.5" style={{ color: "var(--muted)" }}>
+          {c.year}年
+          {versionCount > 1 ? ` · ${versionCount}種類` : ""}
+        </p>
       </div>
     </div>
   )
 }
 
 // ================================================================
+// 個別画面のパネル表示
+// ================================================================
+
+// ================================================================
 // ライトボックス（拡大表示モーダル）
 // ================================================================
+
 type LightboxState = { url: string; label: string; orientation: Orientation } | null
+
 const ZOOM_MIN = 0.5
 const ZOOM_MAX = 5
 const ZOOM_STEP = 0.25
 
-function Lightbox({ state, title, affiliateUrl2, onClose }: {
-  state: LightboxState; title?: string; affiliateUrl1?: string; affiliateUrl2?: string; onClose: () => void
+function Lightbox({
+  state,
+  title,
+  affiliateUrl1,
+  affiliateUrl2,
+  onClose,
+}: {
+  state: LightboxState
+  title?: string
+  affiliateUrl1?: string
+  affiliateUrl2?: string
+  onClose: () => void
 }) {
   const [zoom, setZoom] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const dragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { if (state) { setZoom(1); setOffset({ x: 0, y: 0 }) } }, [state])
+  // 開くたびにズーム・位置をリセット
+  useEffect(() => {
+    if (state) { setZoom(1); setOffset({ x: 0, y: 0 }) }
+  }, [state])
 
+  // Esc で閉じる、+/- でズーム
   useEffect(() => {
     if (!state) return
     const handler = (e: KeyboardEvent) => {
@@ -344,17 +572,20 @@ function Lightbox({ state, title, affiliateUrl2, onClose }: {
     return () => window.removeEventListener("keydown", handler)
   }, [state, onClose])
 
+  // スクロール抑止
   useEffect(() => {
     document.body.style.overflow = state ? "hidden" : ""
     return () => { document.body.style.overflow = "" }
   }, [state])
 
+  // マウスホイールでズーム
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault()
     const delta = e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP
     setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(z + delta).toFixed(2))))
   }, [])
 
+  // ドラッグで移動（ズーム時のみ有効）
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (zoom <= 1) return
     dragRef.current = { startX: e.clientX, startY: e.clientY, ox: offset.x, oy: offset.y }
@@ -370,18 +601,22 @@ function Lightbox({ state, title, affiliateUrl2, onClose }: {
   }, [])
 
   const handleMouseUp = useCallback(() => { dragRef.current = null }, [])
+
   const changeZoom = (delta: number) => {
     setZoom((z) => {
       const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(z + delta).toFixed(2)))
+      // ズームアウトして1倍以下になったら位置リセット
       if (next <= 1) setOffset({ x: 0, y: 0 })
       return next
     })
   }
 
+  const resetZoom = () => { setZoom(1); setOffset({ x: 0, y: 0 }) }
+
   if (!state) return null
+
   const isLandscape = state.orientation === "landscape"
   const isDragging = zoom > 1
-
   const safeTitle = title?.trim()
   const amazonUrl = safeTitle
     ? safeAmazonUrl(affiliateUrl1)
@@ -391,30 +626,121 @@ function Lightbox({ state, title, affiliateUrl2, onClose }: {
     ? safeHttpUrl(affiliateUrl2)
       || "https://jp.mercari.com/search?keyword=" + encodeURIComponent(safeTitle + " チラシ")
     : ""
+  
   return (
-    <div className="lightbox-modal fixed inset-0 z-50 flex flex-col items-center justify-center" style={{ background: "rgba(0,0,0,0.92)" }} onContextMenu={(e) => e.preventDefault()}>
-      <div className="w-full flex items-center justify-between px-6 py-3 flex-shrink-0" style={{ background: "rgba(0,0,0,0.4)" }}>
+    <div
+      className="lightbox-modal fixed inset-0 z-50 flex flex-col items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.92)" }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      {/* 上部バー */}
+      <div className="w-full flex items-center justify-between px-6 py-3 flex-shrink-0"
+        style={{ background: "rgba(0,0,0,0.4)" }}>
         <div className="flex items-center gap-3">
           <span className="font-serif text-white text-sm font-semibold">{state.label}</span>
-          <span className="font-mono text-[10px] px-2 py-0.5 border border-white/20 text-white/40">{isLandscape ? "横向き" : "縦向き"}</span>
+          <span className="font-mono text-[10px] px-2 py-0.5 border border-white/20 text-white/40">
+            {isLandscape ? "横向き" : "縦向き"}
+          </span>
+          <span className="font-mono text-[10px] text-white/25">参照専用</span>
         </div>
+
+        {/* ズームコントロール */}
         <div className="flex items-center gap-1">
-          <button onClick={() => changeZoom(-ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} className="w-8 h-8 font-mono text-lg flex items-center justify-center text-white/70 hover:text-white">−</button>
-          <span className="font-mono text-xs px-3 text-white/70 text-center min-w-[4rem]">{Math.round(zoom * 100)}%</span>
-          <button onClick={() => changeZoom(ZOOM_STEP)} disabled={zoom >= ZOOM_MAX} className="w-8 h-8 font-mono text-lg flex items-center justify-center text-white/70 hover:text-white">＋</button>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-white font-mono text-xl ml-4">×</button>
+          <button
+            onClick={() => changeZoom(-ZOOM_STEP)}
+            disabled={zoom <= ZOOM_MIN}
+            className="w-8 h-8 font-mono text-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-25 disabled:cursor-default"
+          >−</button>
+
+          <button
+            onClick={resetZoom}
+            className="font-mono text-xs px-3 h-8 text-white/70 hover:text-white hover:bg-white/10 transition-colors min-w-[4rem]"
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+
+          <button
+            onClick={() => changeZoom(ZOOM_STEP)}
+            disabled={zoom >= ZOOM_MAX}
+            className="w-8 h-8 font-mono text-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-25 disabled:cursor-default"
+          >＋</button>
+
+          <div className="w-px h-5 mx-2 bg-white/20" />
+
+          {/* ズームバー */}
+          <input
+            type="range"
+            min={ZOOM_MIN}
+            max={ZOOM_MAX}
+            step={ZOOM_STEP}
+            value={zoom}
+            onChange={(e) => {
+              const next = parseFloat(e.target.value)
+              setZoom(next)
+              if (next <= 1) setOffset({ x: 0, y: 0 })
+            }}
+            className="w-28 accent-white cursor-pointer"
+          />
+
+          <div className="w-px h-5 mx-2 bg-white/20" />
+
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-white font-mono text-xl leading-none transition-colors"
+          >×</button>
         </div>
       </div>
 
-      <div ref={containerRef} className="flex-1 w-full flex items-center justify-center overflow-hidden" style={{ cursor: isDragging ? "grab" : "default" }} onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onClick={(e) => { if (dragRef.current === null && e.target === e.currentTarget) onClose() }}>
-        <div style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`, transformOrigin: "center center", transition: dragRef.current ? "none" : "transform 0.15s ease", userSelect: "none" }}>
-          <img src={optimizeCloudinaryUrl(state.url)} alt={state.label} draggable={false} style={{ maxWidth: isLandscape ? "80vw" : "50vw", maxHeight: "75vh", objectFit: "contain", display: "block" }} />
+      {/* 画像エリア（ホイールズーム・ドラッグ移動） */}
+      <div
+        ref={containerRef}
+        className="flex-1 w-full flex items-center justify-center overflow-hidden"
+        style={{ cursor: isDragging ? "grab" : "default" }}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onClick={(e) => {
+          // ドラッグ後の誤クリックを無視、背景クリックで閉じる
+          if (dragRef.current === null && e.target === e.currentTarget) onClose()
+        }}
+      >
+        <div
+          style={{
+            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+            transformOrigin: "center center",
+            transition: dragRef.current ? "none" : "transform 0.15s ease",
+            userSelect: "none",
+            WebkitUserSelect: "none",
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <img
+            src={optimizeCloudinaryUrl(state.url)}
+            alt={state.label}
+            draggable={false}
+            style={{
+              maxWidth: isLandscape ? "80vw" : "50vw",
+              maxHeight: "75vh",
+              objectFit: "contain",
+              display: "block",
+              pointerEvents: "none",
+            }}
+          />
         </div>
       </div>
 
-      <div className="w-full border-t border-white/10 px-4 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-3 flex-shrink-0" style={{ background: "rgba(0,0,0,0.72)" }}>
+      {/* 関連商品リンク */}
+      <div className="w-full border-t border-white/10 px-4 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-3 flex-shrink-0"
+        style={{ background: "rgba(0,0,0,0.72)" }}>
         {safeTitle ? (
-          <a href={amazonUrl} target="_blank" rel="noopener noreferrer sponsored" className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-neutral-950 bg-amber-400 hover:bg-amber-300 transition-colors">
+          <a
+            href={amazonUrl}
+            target="_blank"
+            rel="noopener noreferrer sponsored"
+            className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-neutral-950 bg-amber-400 hover:bg-amber-300 transition-colors"
+          >
             Amazonでこの映画をチェック
           </a>
         ) : (
@@ -423,7 +749,12 @@ function Lightbox({ state, title, affiliateUrl2, onClose }: {
           </span>
         )}
         {safeTitle ? (
-          <a href={mercariUrl} target="_blank" rel="noopener noreferrer sponsored" className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-white border border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 transition-colors">
+          <a
+            href={mercariUrl}
+            target="_blank"
+            rel="noopener noreferrer sponsored"
+            className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-white border border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 transition-colors"
+          >
             メルカリ・他でチェック
           </a>
         ) : (
@@ -432,12 +763,31 @@ function Lightbox({ state, title, affiliateUrl2, onClose }: {
           </span>
         )}
       </div>
+
+      {/* 下部ヒント */}
+      <div className="hidden sm:flex w-full py-2 items-center justify-center gap-6 flex-shrink-0"
+        style={{ background: "rgba(0,0,0,0.4)" }}>
+        {[
+          ["ホイール", "ズーム"],
+          ["+  /  −", "ズーム"],
+          ["0キー", "リセット"],
+          ["ドラッグ", "移動（拡大時）"],
+          ["Esc", "閉じる"],
+        ].map(([key, desc]) => (
+          <span key={key} className="font-mono text-[10px] text-white/30">
+            <span className="text-white/50">{key}</span> {desc}
+          </span>
+        ))}
+      </div>
     </div>
   )
 }
 
+// パネル1枚の表示（向きに応じてサイズが変わる）
 function PanelItem({ panel, size = 140, onOpenLightbox }: {
-  panel: ChirashiPanel; size?: number; onOpenLightbox?: (state: LightboxState) => void
+  panel: ChirashiPanel
+  size?: number
+  onOpenLightbox?: (state: LightboxState) => void
 }) {
   const isLandscape = panel.orientation === "landscape"
   const width = isLandscape ? size * 2 : size
@@ -445,43 +795,90 @@ function PanelItem({ panel, size = 140, onOpenLightbox }: {
 
   return (
     <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
-      <div className={`overflow-hidden shadow-md relative group ${canExpand ? "cursor-zoom-in" : ""}`} style={{ width: `${width}px`, aspectRatio: isLandscape ? "4/3" : "2/3", background: "#e8e0d4", outline: "1px solid var(--border)" }} onClick={() => canExpand && onOpenLightbox!({ url: panel.url, label: panel.label, orientation: panel.orientation })}>
+      <div
+        className={`overflow-hidden shadow-md relative group ${canExpand ? "cursor-zoom-in" : ""}`}
+        style={{
+          width: `${width}px`,
+          aspectRatio: isLandscape ? "4/3" : "2/3",
+          background: "#e8e0d4",
+          outline: "1px solid var(--border)",
+        }}
+        onClick={() => canExpand && onOpenLightbox!({ url: panel.url, label: panel.label, orientation: panel.orientation })}
+      >
         {panel.url ? (
           <>
             <img src={optimizeCloudinaryUrl(panel.url)} alt={panel.label} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
-            {canExpand && <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ background: "rgba(0,0,0,0.35)" }}><span className="text-white text-2xl">⊕</span></div>}
+            {/* ホバー時に拡大アイコン */}
+            {canExpand && (
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                style={{ background: "rgba(0,0,0,0.35)" }}>
+                <span className="text-white text-2xl font-mono">⊕</span>
+              </div>
+            )}
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center font-serif text-2xl" style={{ color: "var(--border)" }}>映</div>
         )}
       </div>
       <span className="font-mono text-[10px]" style={{ color: "var(--muted)" }}>{panel.label}</span>
+      {/* 向きバッジ */}
+      <span className="font-mono text-[8px] px-1.5 py-0.5 border" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+        {panel.orientation === "landscape" ? "横向き" : "縦向き"}
+      </span>
     </div>
   )
 }
 
 function PanelDisplay({ c }: { c: Chirashi }) {
   const [lightbox, setLightbox] = useState<LightboxState>(null)
-  const frontBack = c.panels.filter((p) => p.label === "表面" || p.label === "裏面")
-  const insides = c.panels.filter((p) => p.label !== "表面" && p.label !== "裏面")
+  const frontBack = c.panels.filter((panel) => panel.label === "表面" || panel.label === "裏面")
+  const insides = c.panels.filter((panel) => panel.label !== "表面" && panel.label !== "裏面")
 
   return (
     <>
-      <Lightbox state={lightbox} title={c.title} affiliateUrl1={c.affiliateUrl1} affiliateUrl2={c.affiliateUrl2} onClose={() => setLightbox(null)} />
+      <Lightbox
+        state={lightbox}
+        title={c.title}
+        affiliateUrl1={c.affiliateUrl1}
+        affiliateUrl2={c.affiliateUrl2}
+        onClose={() => setLightbox(null)}
+      />
+
       <div className="space-y-8">
+        {/* 外面（表面・裏面） */}
         {frontBack.length > 0 && (
           <div>
-            <p className="font-mono text-[10px] mb-4 tracking-widest" style={{ color: "var(--muted)" }}>外面 <span className="ml-3 text-[9px]">画像をクリックで拡大</span></p>
+            <p className="font-mono text-[10px] mb-4 tracking-widest" style={{ color: "var(--muted)" }}>
+              外面
+              {frontBack.length === 2 && (
+                <span className="ml-2 px-2 py-0.5 border text-[9px]" style={{ borderColor: "var(--border)" }}>
+                  {frontBack[0].orientation === "portrait" ? "縦" : "横"}
+                  ・
+                  {frontBack[1].orientation === "portrait" ? "縦" : "横"}
+                  パターン
+                </span>
+              )}
+              <span className="ml-3 text-[9px]" style={{ color: "var(--muted)" }}>画像をクリックで拡大</span>
+            </p>
             <div className="flex gap-6 flex-wrap items-start">
-              {frontBack.map((panel) => <PanelItem key={panel.label} panel={panel} size={140} onOpenLightbox={setLightbox} />)}
+              {frontBack.map((panel) => (
+                <PanelItem key={panel.label} panel={panel} size={140} onOpenLightbox={setLightbox} />
+              ))}
             </div>
           </div>
         )}
+
+        {/* 中面 */}
         {insides.length > 0 && (
           <div>
-            <p className="font-mono text-[10px] mb-4 tracking-widest" style={{ color: "var(--muted)" }}>中面（{FOLD_LABEL[c.foldType]}） <span className="ml-3 text-[9px]">画像をクリックで拡大</span></p>
+            <p className="font-mono text-[10px] mb-4 tracking-widest" style={{ color: "var(--muted)" }}>
+              中面（{FOLD_LABEL[c.foldType]}・展開）
+              <span className="ml-3 text-[9px]">画像をクリックで拡大</span>
+            </p>
             <div className="flex gap-px items-start flex-wrap">
-              {insides.map((panel, i) => <PanelItem key={i} panel={panel} size={120} onOpenLightbox={setLightbox} />)}
+              {insides.map((panel, i) => (
+                <PanelItem key={i} panel={panel} size={120} onOpenLightbox={setLightbox} />
+              ))}
             </div>
           </div>
         )}
@@ -490,140 +887,672 @@ function PanelDisplay({ c }: { c: Chirashi }) {
   )
 }
 
-function Header({ chirashiList, page, onNavigate }: { chirashiList: Chirashi[]; page: Page; onNavigate: (p: Page) => void }) {
+// ================================================================
+// ヘッダーコンポーネント
+// ================================================================
+
+function Header({
+  chirashiList,
+  page,
+  onNavigate,
+}: {
+  chirashiList: Chirashi[]
+  page: Page
+  onNavigate: (p: Page) => void
+}) {
   return (
     <header style={{ background: "var(--header-bg)" }} className="text-white flex-shrink-0">
+      {/* タイトル行 */}
       <div className="px-6 py-3 flex items-center justify-between border-b border-white/10">
-        <button onClick={() => onNavigate({ type: "main" })} className="flex items-center gap-3 hover:opacity-80">
+        <button
+          onClick={() => onNavigate({ type: "main" })}
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+        >
           <div className="w-7 h-7 flex items-center justify-center font-serif font-bold" style={{ background: "var(--accent)" }}>映</div>
-          <div className="text-left">
+          <div>
             <div className="font-serif text-base font-bold tracking-wider leading-none">映画チラシ・コレクション</div>
             <div className="font-mono text-[9px] text-white/40 mt-0.5">MOVIE CHIRASHI DATABASE</div>
           </div>
         </button>
-        <span className="font-mono text-xs text-white/40"><span className="text-white font-bold">{chirashiList.length}</span> 件</span>
+
+        {/* パンくずリスト */}
+        <div className="flex items-center gap-2 font-mono text-[10px] text-white/40">
+          <button onClick={() => onNavigate({ type: "main" })} className="hover:text-white transition-colors">メイン</button>
+          {page.type === "tab" && (
+            <><span>/</span><span className="text-white">【{page.kana}】</span></>
+          )}
+          {page.type === "detail" && (
+            <>
+              {page.back.type === "tab" && (
+                <><span>/</span><button onClick={() => onNavigate(page.back)} className="hover:text-white transition-colors">【{page.back.kana}】</button></>
+              )}
+              <span>/</span>
+              <span className="text-white truncate max-w-[120px]">
+                {chirashiList.find((c) => c.id === page.id)?.title}
+              </span>
+            </>
+          )}
+        </div>
+
+        <span className="font-mono text-xs text-white/40">
+          <span className="text-white font-bold">{chirashiList.length}</span> 件
+        </span>
       </div>
-      <div className="px-6 py-1.5 flex items-center gap-px flex-wrap border-b border-white/10">
-        {KANA_ONLY.map((kana) => {
-          const count = chirashiList.filter((c) => normalizeKana(c.titleKana) === kana).length
-          return (
-            <button key={kana} disabled={count === 0} onClick={() => onNavigate({ type: "tab", kana, pageNum: 1 })} className={`px-2 py-1 font-serif text-xs ${count === 0 ? "text-white/15" : "text-white/60 hover:text-white"}`}>{kana}</button>
-          )
-        })}
+
+      {/* 五十音インデックス */}
+      <div className="border-b border-white/10">
+        {/* A–Z / 0–9 */}
+        <div className="px-6 py-1.5 flex items-center gap-px flex-wrap border-b border-white/5">
+          <span className="font-mono text-[9px] text-white/25 w-8 flex-shrink-0">A–Z</span>
+          {ALPHA_INDEX.map((ch) => {
+            const count = chirashiList.filter((c) => normalizeKana(c.titleKana) === ch).length
+            return (
+              <button key={ch} disabled={count === 0}
+                onClick={() => onNavigate({ type: "tab", kana: ch, pageNum: 1 })}
+                className={`w-6 py-1 font-mono text-[11px] transition-colors text-center ${count === 0 ? "text-white/15 cursor-default" : page.type === "tab" && page.kana === ch ? "text-white bg-white/10 border border-white/30" : "text-white/60 hover:text-white"}`}>
+                {ch}
+              </button>
+            )
+          })}
+          <span className="mx-1 text-white/20">|</span>
+          <span className="font-mono text-[9px] text-white/25 mr-1">0–9</span>
+          {DIGIT_INDEX.map((ch) => {
+            const count = chirashiList.filter((c) => normalizeKana(c.titleKana) === ch).length
+            return (
+              <button key={ch} disabled={count === 0}
+                onClick={() => onNavigate({ type: "tab", kana: ch, pageNum: 1 })}
+                className={`w-6 py-1 font-mono text-[11px] transition-colors text-center ${count === 0 ? "text-white/15 cursor-default" : page.type === "tab" && page.kana === ch ? "text-white bg-white/10 border border-white/30" : "text-white/60 hover:text-white"}`}>
+                {ch}
+              </button>
+            )
+          })}
+        </div>
+        {/* 五十音 */}
+        <div className="px-6 py-1.5 flex items-center gap-px flex-wrap">
+          <span className="font-mono text-[9px] text-white/25 w-8 flex-shrink-0">五十音</span>
+          {/* メイン（全）ボタン */}
+          <button
+            onClick={() => onNavigate({ type: "main" })}
+            className={`px-3 py-1 font-mono text-xs transition-colors ${page.type === "main" ? "text-white bg-white/10 border border-white/30" : "text-white/50 hover:text-white"}`}
+          >
+            メイン
+          </button>
+          {KANA_ONLY.map((kana) => {
+            const count = chirashiList.filter((c) => normalizeKana(c.titleKana) === kana).length
+            return (
+              <button key={kana} disabled={count === 0}
+                onClick={() => onNavigate({ type: "tab", kana, pageNum: 1 })}
+                className={`px-2 py-1 font-serif text-xs transition-colors ${count === 0 ? "text-white/15 cursor-default" : page.type === "tab" && page.kana === kana ? "text-white bg-white/10 border border-white/30" : "text-white/60 hover:text-white"}`}>
+                {kana}
+              </button>
+            )
+          })}
+        </div>
       </div>
     </header>
   )
 }
-function BrowseControls({ query, onQueryChange, decade, onDecadeChange, years, resultCount, totalCount }: {
-  query: string; onQueryChange: (v: string) => void; decade: string; onDecadeChange: (v: string) => void; year: string; onYearChange: (v: string) => void; years: number[]; resultCount: number; totalCount: number
+
+// ================================================================
+// 検索・年代フィルター
+// ================================================================
+
+function BrowseControls({
+  query,
+  onQueryChange,
+  decade,
+  onDecadeChange,
+  year,
+  onYearChange,
+  years,
+  resultCount,
+  totalCount,
+}: {
+  query: string
+  onQueryChange: (value: string) => void
+  decade: string
+  onDecadeChange: (value: string) => void
+  year: string
+  onYearChange: (value: string) => void
+  years: number[]
+  resultCount: number
+  totalCount: number
 }) {
-  const decades = Array.from(new Set(years.map((y) => Math.floor(y / 10) * 10))).sort((a, b) => b - a)
+  const decades = Array.from(new Set(years.map((value) => Math.floor(value / 10) * 10))).sort((a, b) => b - a)
+  const visibleYears = decade === "all"
+    ? years
+    : years.filter((value) => Math.floor(value / 10) * 10 === Number(decade))
+  const hasFilter = query.trim() || decade !== "all" || year !== "all"
+
   return (
     <section className="border-b px-4 py-4 sm:px-6" style={{ background: "var(--card-bg)", borderColor: "var(--border)" }}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <input type="search" value={query} onChange={(e) => onQueryChange(e.target.value)} placeholder="タイトル・監督から検索" className="border p-2 text-sm flex-1" style={{ background: "var(--bg)", borderColor: "var(--border)" }} />
-        <select value={decade} onChange={(e) => onDecadeChange(e.target.value)} className="border p-2 text-sm" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
-          <option value="all">すべての年代</option>
-          {decades.map((d) => <option key={d} value={d}>{d}年代</option>)}
-        </select>
-        <span className="font-mono text-xs sm:ml-auto">{resultCount} / {totalCount}件</span>
+      <div className="mx-auto flex max-w-6xl flex-col gap-3 lg:flex-row lg:items-end">
+        <label className="min-w-0 flex-1">
+          <span className="mb-1.5 block font-mono text-[9px] tracking-widest" style={{ color: "var(--muted)" }}>
+            キーワード検索
+          </span>
+          <div className="flex h-11 items-center border transition-colors focus-within:border-[#1a1410]" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
+            <span className="px-3 font-mono text-xs" style={{ color: "var(--muted)" }}>検索</span>
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+              placeholder="タイトル・監督・出演者から検索"
+              className="h-full min-w-0 flex-1 bg-transparent pr-3 text-sm outline-none placeholder:text-[#8a7f74]"
+            />
+          </div>
+        </label>
+
+        <div className="grid grid-cols-2 gap-3 sm:flex">
+          <label className="sm:w-40">
+            <span className="mb-1.5 block font-mono text-[9px] tracking-widest" style={{ color: "var(--muted)" }}>
+              年代
+            </span>
+            <select
+              value={decade}
+              onChange={(event) => onDecadeChange(event.target.value)}
+              className="h-11 w-full border bg-transparent px-3 text-sm outline-none"
+              style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+            >
+              <option value="all">すべての年代</option>
+              {decades.map((value) => <option key={value} value={value}>{value}年代</option>)}
+            </select>
+          </label>
+          <label className="sm:w-36">
+            <span className="mb-1.5 block font-mono text-[9px] tracking-widest" style={{ color: "var(--muted)" }}>
+              製作年・公開年
+            </span>
+            <select
+              value={year}
+              onChange={(event) => onYearChange(event.target.value)}
+              className="h-11 w-full border bg-transparent px-3 text-sm outline-none disabled:opacity-50"
+              style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+            >
+              <option value="all">{decade === "all" ? "すべての製作年・公開年" : `${decade}年代すべて`}</option>
+              {visibleYears.map((value) => <option key={value} value={value}>{value}年</option>)}
+            </select>
+          </label>
+        </div>
+
+        <div className="flex h-11 items-center justify-between gap-4 lg:min-w-40 lg:justify-end">
+          <span className="font-mono text-[10px]" style={{ color: "var(--muted)" }}>
+            <strong className="text-sm" style={{ color: "var(--fg)" }}>{resultCount}</strong> / {totalCount}件
+          </span>
+          {hasFilter && (
+            <button
+              onClick={() => {
+                onQueryChange("")
+                onDecadeChange("all")
+                onYearChange("all")
+              }}
+              className="font-mono text-[10px] underline underline-offset-4 hover:opacity-60"
+              style={{ color: "var(--accent)" }}
+            >
+              条件をクリア
+            </button>
+          )}
+        </div>
       </div>
     </section>
   )
 }
 
-function Pagination({ pageNum, totalPages, onChange }: { pageNum: number; totalPages: number; onChange: (p: number) => void }) {
+function Pagination({ pageNum, totalPages, onChange }: {
+  pageNum: number
+  totalPages: number
+  onChange: (page: number) => void
+}) {
   if (totalPages <= 1) return null
   return (
-    <nav className="mt-10 flex items-center justify-center gap-3">
-      <button onClick={() => onChange(pageNum - 1)} disabled={pageNum === 1} className="border px-4 py-2 text-xs disabled:opacity-30">← 前へ</button>
-      <span className="font-mono text-xs">{pageNum} / {totalPages}</span>
-      <button onClick={() => onChange(pageNum + 1)} disabled={pageNum === totalPages} className="border px-4 py-2 text-xs disabled:opacity-30">次へ →</button>
+    <nav className="mt-10 flex items-center justify-center gap-3" aria-label="ページ送り">
+      <button
+        onClick={() => onChange(pageNum - 1)}
+        disabled={pageNum === 1}
+        className="border px-4 py-2 font-mono text-xs transition-colors hover:bg-[#1a1410] hover:text-white disabled:cursor-default disabled:opacity-30"
+        style={{ borderColor: "var(--border)" }}
+      >
+        ← 前へ
+      </button>
+      <span className="min-w-24 text-center font-mono text-xs" style={{ color: "var(--muted)" }}>
+        {pageNum} / {totalPages}
+      </span>
+      <button
+        onClick={() => onChange(pageNum + 1)}
+        disabled={pageNum === totalPages}
+        className="border px-4 py-2 font-mono text-xs transition-colors hover:bg-[#1a1410] hover:text-white disabled:cursor-default disabled:opacity-30"
+        style={{ borderColor: "var(--border)" }}
+      >
+        次へ →
+      </button>
     </nav>
   )
 }
 
-function MainView({ chirashiList, filterActive, onNavigate }: { chirashiList: Chirashi[]; filterActive: boolean; onNavigate: (p: Page) => void }) {
-  const groups = groupChirashi(chirashiList)
+// ================================================================
+// メイン画面（通常時は登録日の最新1日、検索時は該当作品）
+// ================================================================
+
+function MainView({
+  chirashiList,
+  filterActive,
+  filterKey,
+  onNavigate,
+}: {
+  chirashiList: Chirashi[]
+  filterActive: boolean
+  filterKey: string
+  onNavigate: (p: Page) => void
+}) {
+  const [pageNum, setPageNum] = useState(1)
+  useEffect(() => setPageNum(1), [filterKey])
+
+  const latestItem = [...chirashiList]
+    .filter((item) => dateValue(item.addedAt) > 0)
+    .sort((a, b) => dateValue(b.addedAt) - dateValue(a.addedAt))[0]
+  const latestDate = latestItem?.addedAt ?? ""
+  const latestDateValue = dateValue(latestDate)
+  const visibleItems = filterActive
+    ? chirashiList
+    : latestDate
+      ? chirashiList.filter((item) => dateValue(item.addedAt) === latestDateValue)
+      : []
+  const groups = groupChirashi(visibleItems)
+  const totalPages = Math.max(1, Math.ceil(groups.length / ITEMS_PER_PAGE))
+  const safePage = Math.min(pageNum, totalPages)
+  const pageGroups = groups.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE)
+
   return (
     <div className="p-4 sm:p-6">
-      <h1 className="font-serif text-xl font-bold mb-4">{filterActive ? "検索結果" : "登録チラシ一覧"}</h1>
-      <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
-        {groups.map((g) => <ChirashiCard key={g.key} c={g.representative} versionCount={g.versions.length} onClick={() => onNavigate({ type: "detail", id: g.representative.id, back: { type: "main" } })} />)}
+      <div className="mb-5 flex flex-wrap items-baseline gap-3">
+        <h1 className="font-serif text-xl font-bold">{filterActive ? "検索結果" : "最新登録チラシ"}</h1>
+        <span className="font-mono text-[10px]" style={{ color: "var(--muted)" }}>
+          {filterActive
+            ? `${groups.length}作品 · 製作年・公開年の新しい順`
+            : latestDate
+              ? `${formatDate(latestDate)}に登録 · ${groups.length}作品`
+              : "addedAtが入力された作品はまだありません"}
+        </span>
       </div>
+
+      {groups.length === 0 ? (
+        <div className="flex min-h-64 flex-col items-center justify-center gap-3 border border-dashed px-6 text-center" style={{ borderColor: "var(--border)" }}>
+          <div className="font-serif text-4xl" style={{ color: "var(--border)" }}>無</div>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            {filterActive
+              ? "条件に一致する作品がありません"
+              : "最新表示にはCSVのaddedAt列へ登録日（例: 2026-03-08）を入力してください"}
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
+            {pageGroups.map((group) => (
+              <ChirashiCard
+                key={group.key}
+                c={group.representative}
+                versionCount={group.versions.length}
+                onClick={() => onNavigate({ type: "detail", id: group.representative.id, back: { type: "main" } })}
+              />
+            ))}
+          </div>
+          <Pagination pageNum={safePage} totalPages={totalPages} onChange={setPageNum} />
+        </>
+      )}
     </div>
   )
 }
 
-function TabView({ chirashiList, kana, pageNum, onNavigate }: { chirashiList: Chirashi[]; kana: string; pageNum: number; onNavigate: (p: Page) => void }) {
+// ================================================================
+// タブ画面（かな別 / ページネーション）
+// ================================================================
+
+function TabView({
+  chirashiList,
+  kana,
+  pageNum,
+  onNavigate,
+}: {
+  chirashiList: Chirashi[]
+  kana: string
+  pageNum: number
+  onNavigate: (p: Page) => void
+}) {
   const items = chirashiList.filter((c) => normalizeKana(c.titleKana) === kana)
   const groups = groupChirashi(items)
+  const totalPages = Math.max(1, Math.ceil(groups.length / ITEMS_PER_PAGE))
+  const safePage = Math.min(pageNum, totalPages)
+  const pageGroups = groups.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE)
+
   return (
     <div className="p-6">
-      <h1 className="font-serif text-xl font-bold mb-4">【{kana}】のチラシ</h1>
-      <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
-        {groups.map((g) => <ChirashiCard key={g.key} c={g.representative} versionCount={g.versions.length} onClick={() => onNavigate({ type: "detail", id: g.representative.id, back: { type: "tab", kana, pageNum } })} />)}
+      <div className="flex items-baseline gap-3 mb-5">
+        <h1 className="font-serif text-xl font-bold">【{kana}】のチラシ</h1>
+        <span className="font-mono text-[10px]" style={{ color: "var(--muted)" }}>
+          {groups.length}作品 · {items.length}種類 · {safePage}/{totalPages}ページ
+        </span>
       </div>
+
+      {items.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-64 gap-3">
+          <div className="font-serif text-5xl" style={{ color: "var(--border)" }}>無</div>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>該当するチラシがありません</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
+            {pageGroups.map((group) => (
+              <ChirashiCard
+                key={group.key}
+                c={group.representative}
+                versionCount={group.versions.length}
+                onClick={() => onNavigate({ type: "detail", id: group.representative.id, back: { type: "tab", kana, pageNum: safePage } })}
+              />
+            ))}
+          </div>
+          <Pagination
+            pageNum={safePage}
+            totalPages={totalPages}
+            onChange={(nextPage) => onNavigate({ type: "tab", kana, pageNum: nextPage })}
+          />
+        </>
+      )}
     </div>
   )
 }
 
-function DetailView({ chirashiList, id, back, onNavigate }: { chirashiList: Chirashi[]; id: string; back: Page; onNavigate: (p: Page) => void }) {
-  const c = chirashiList.find((item) => item.id === id)
-  if (!c) return <div className="p-10 text-center">見つかりませんでした</div>
+// ================================================================
+// 個別画面
+// ================================================================
+
+function DetailView({
+  chirashiList,
+  id,
+  back,
+  onNavigate,
+}: {
+  chirashiList: Chirashi[]
+  id: string
+  back: Page
+  onNavigate: (p: Page) => void
+}) {
+  const selected = chirashiList.find((item) => item.id === id)
+  const versions = useMemo(
+    () => selected
+      ? chirashiList
+        .filter((item) => item.title === selected.title && item.year === selected.year)
+        .sort((a, b) => dateValue(b.addedAt) - dateValue(a.addedAt) || japaneseCollator.compare(b.id, a.id))
+      : [],
+    [chirashiList, selected?.title, selected?.year],
+  )
+  const [activeId, setActiveId] = useState(id)
+  useEffect(() => setActiveId(id), [id])
+  const c = versions.find((item) => item.id === activeId) ?? selected
+
+  if (!c) return (
+    <div className="p-10 text-center">
+      <p style={{ color: "var(--muted)" }}>チラシが見つかりませんでした</p>
+      <button onClick={() => onNavigate(back)} className="mt-4 font-mono text-xs underline" style={{ color: "var(--accent)" }}>戻る</button>
+    </div>
+  )
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
-      <button onClick={() => onNavigate(back)} className="text-xs mb-6 block text-left">← 戻る</button>
+      {/* 戻るボタン */}
+      <button
+        onClick={() => onNavigate(back)}
+        className="font-mono text-[10px] mb-6 flex items-center gap-2 hover:opacity-60 transition-opacity"
+        style={{ color: "var(--muted)" }}
+      >
+        ← {back.type === "main" ? "メインに戻る" : `【${(back as { type: "tab"; kana: string; pageNum: number }).kana}】に戻る`}
+      </button>
+
+      {/* タイトル・基本情報 */}
       <div className="mb-8">
+        <div className="font-mono text-[10px] mb-1 flex items-center gap-2" style={{ color: "var(--muted)" }}>
+          <span>{c.id}</span>
+          <span>·</span>
+          <span>表面: {frontOrientation(c) === "landscape" ? "横向き" : "縦向き"}</span>
+          <span>·</span>
+          <span>{FOLD_LABEL[c.foldType]}</span>
+          <span>·</span>
+          <span>{c.panels.length}面</span>
+          {versions.length > 1 && (
+            <>
+              <span>·</span>
+              <span>全{versions.length}種類</span>
+            </>
+          )}
+        </div>
         <h1 className="font-serif text-3xl font-bold mb-3">{c.title}</h1>
-        <p className="text-sm">{c.year}年 · 監督: {c.director} · 出演: {c.cast.join(", ")}</p>
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+          <span><span className="font-mono text-[10px] mr-1.5" style={{ color: "var(--muted)" }}>製作年・公開年</span>{c.year}年</span>
+          <span><span className="font-mono text-[10px] mr-1.5" style={{ color: "var(--muted)" }}>監督</span>{c.director}</span>
+          <span><span className="font-mono text-[10px] mr-1.5" style={{ color: "var(--muted)" }}>出演</span>{c.cast.join("、")}</span>
+        </div>
       </div>
-      <PanelDisplay c={c} />
+
+      {versions.length > 1 && (
+        <div className="mb-8 border-y py-4" style={{ borderColor: "var(--border)" }}>
+          <div className="mb-3 flex items-center justify-between gap-4">
+            <p className="font-mono text-[10px] tracking-widest" style={{ color: "var(--muted)" }}>
+              チラシの種類を切り替える
+            </p>
+            <span className="font-mono text-[9px]" style={{ color: "var(--muted)" }}>
+              {versions.findIndex((item) => item.id === c.id) + 1} / {versions.length}
+            </span>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {versions.map((version, index) => (
+              <button
+                key={version.id}
+                onClick={() => setActiveId(version.id)}
+                className="min-w-32 flex-shrink-0 border px-3 py-2.5 text-left transition-colors"
+                style={{
+                  borderColor: version.id === c.id ? "var(--fg)" : "var(--border)",
+                  background: version.id === c.id ? "var(--fg)" : "var(--card-bg)",
+                  color: version.id === c.id ? "white" : "var(--fg)",
+                }}
+              >
+                <span className="block font-serif text-xs font-bold">種類 {index + 1}</span>
+                <span className="mt-1 block font-mono text-[9px] opacity-60">
+                  {version.id}{version.addedAt ? ` · ${version.addedAt}` : ""}
+                </span>
+                <span className="mt-1 block font-mono text-[9px] opacity-60">
+                  {version.panels.length}面 · {FOLD_LABEL[version.foldType]}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 画像パネル表示 */}
+      <div className="border-t pt-8" style={{ borderColor: "var(--border)" }}>
+        <PanelDisplay key={c.id} c={c} />
+      </div>
+
+      {/* 前後のチラシへのナビ */}
+      {back.type === "tab" && (() => {
+        const siblings = groupChirashi(
+          chirashiList.filter((item) => normalizeKana(item.titleKana) === back.kana)
+        )
+        const idx = siblings.findIndex(
+          (group) => group.title === c.title && group.representative.year === c.year
+        )
+        const prev = siblings[idx - 1]?.representative
+        const next = siblings[idx + 1]?.representative
+        return (
+          <div className="flex justify-between mt-12 pt-6 border-t" style={{ borderColor: "var(--border)" }}>
+            {prev ? (
+              <button onClick={() => onNavigate({ type: "detail", id: prev.id, back })}
+                className="text-left group">
+                <p className="font-mono text-[9px] mb-1" style={{ color: "var(--muted)" }}>← 前の作品</p>
+                <p className="font-serif text-sm font-semibold group-hover:underline">{prev.title}</p>
+              </button>
+            ) : <div />}
+            {next ? (
+              <button onClick={() => onNavigate({ type: "detail", id: next.id, back })}
+                className="text-right group">
+                <p className="font-mono text-[9px] mb-1" style={{ color: "var(--muted)" }}>次の作品 →</p>
+                <p className="font-serif text-sm font-semibold group-hover:underline">{next.title}</p>
+              </button>
+            ) : <div />}
+          </div>
+        )
+      })()}
     </div>
   )
 }
+
+// ================================================================
+// アプリ本体
+// ================================================================
+
+// ================================================================
+// マスターデータの読み込み
+// ================================================================
+// データの管理方法：
+//   public/chirashi-data.csv を編集して GitHub にプッシュするだけで
+//   Vercel が自動的に再デプロイし、世界中の誰でも最新データを見られる。
+// ================================================================
 
 export default function App() {
   const [chirashiList, setChirashiList] = useState<Chirashi[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [page, setPage] = useState<Page>({ type: "main" })
   const [query, setQuery] = useState("")
   const [decade, setDecade] = useState("all")
   const [year, setYear] = useState("all")
 
+  // 起動時に public/chirashi-data.csv を読み込む
   useEffect(() => {
     fetch("/chirashi-data.csv")
-      .then((res) => res.text())
-      .then((text) => {
-        const { data } = parseCsv(text)
-        setChirashiList(data.length > 0 ? data : SAMPLE)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.text()
       })
-      .catch(() => setChirashiList(SAMPLE))
+      .then((text) => {
+        const { data, errors } = parseCsv(text)
+        if (data.length > 0) {
+          setChirashiList(data)
+        } else {
+          // CSVが空またはパース失敗 → サンプルで代替
+          setChirashiList(SAMPLE)
+          if (errors.length > 0) setLoadError(errors[0])
+        }
+      })
+      .catch(() => {
+        // ファイルが見つからない場合はサンプルデータを使用
+        setChirashiList(SAMPLE)
+      })
       .finally(() => setLoading(false))
   }, [])
 
-  const years = useMemo(() => Array.from(new Set(chirashiList.map((item) => item.year))).sort((a, b) => b - a), [chirashiList])
+  const navigate = (p: Page) => {
+    setPage(p)
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  const years = useMemo(
+    () => Array.from(new Set(chirashiList.map((item) => item.year))).sort((a, b) => b - a),
+    [chirashiList],
+  )
   const filteredList = useMemo(() => {
     const needle = normalizeSearchText(query)
     return chirashiList.filter((item) => {
-      const matchesQuery = !needle || normalizeSearchText(item.title).includes(needle)
-      const matchesDecade = decade === "all" || Math.floor(item.year / 10) * 10 === Number(decade)
-      return matchesQuery && matchesDecade
+      const matchesQuery = !needle || normalizeSearchText([
+        item.title,
+        item.titleKana,
+        item.director,
+        ...item.cast,
+      ].join(" ")).includes(needle)
+      const matchesYear = year !== "all"
+        ? item.year === Number(year)
+        : decade === "all" || Math.floor(item.year / 10) * 10 === Number(decade)
+      return matchesQuery && matchesYear
     })
-  }, [chirashiList, query, decade])
+  }, [chirashiList, query, decade, year])
+  const filterActive = Boolean(query.trim() || decade !== "all" || year !== "all")
+  const filterKey = `${query}\u0000${decade}\u0000${year}`
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-serif">読み込み中...</div>
+  const updateQuery = (value: string) => {
+    setQuery(value)
+    setPage({ type: "main" })
+  }
+  const updateDecade = (value: string) => {
+    setDecade(value)
+    setYear("all")
+    setPage({ type: "main" })
+  }
+  const updateYear = (value: string) => {
+    setYear(value)
+    setPage({ type: "main" })
+  }
+
+  // 読み込み中
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg)" }}>
+      <div className="text-center">
+        <div className="font-serif text-4xl mb-4" style={{ color: "var(--border)" }}>映</div>
+        <p className="font-mono text-xs" style={{ color: "var(--muted)" }}>データを読み込んでいます...</p>
+      </div>
+    </div>
+  )
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "var(--bg)", color: "var(--fg)" }}>
-      <Header chirashiList={chirashiList} page={page} onNavigate={setPage} />
-      {page.type !== "detail" && <BrowseControls query={query} onQueryChange={setQuery} decade={decade} onDecadeChange={setDecade} year={year} onYearChange={setYear} years={years} resultCount={filteredList.length} totalCount={chirashiList.length} />}
+      {/* CSVロードエラー通知 */}
+      {loadError && (
+        <div className="px-6 py-2 font-mono text-[10px]" style={{ background: "#fff3cd", color: "#856404" }}>
+          ⚠ chirashi-data.csv の読み込みに問題があります: {loadError}（サンプルデータを表示中）
+        </div>
+      )}
+      <Header
+        chirashiList={chirashiList}
+        page={page}
+        onNavigate={navigate}
+      />
+
+      {page.type !== "detail" && (
+        <BrowseControls
+          query={query}
+          onQueryChange={updateQuery}
+          decade={decade}
+          onDecadeChange={updateDecade}
+          year={year}
+          onYearChange={updateYear}
+          years={years}
+          resultCount={filteredList.length}
+          totalCount={chirashiList.length}
+        />
+      )}
+
       <main className="flex-1">
-        {page.type === "main" && <MainView chirashiList={filteredList} filterActive={Boolean(query || decade !== "all")} onNavigate={setPage} />}
-        {page.type === "tab" && <TabView chirashiList={filteredList} kana={page.kana} pageNum={page.pageNum} onNavigate={setPage} />}
-        {page.type === "detail" && <DetailView chirashiList={chirashiList} id={page.id} back={page.back} onNavigate={setPage} />}
+        {page.type === "main" && (
+          <MainView
+            chirashiList={filteredList}
+            filterActive={filterActive}
+            filterKey={filterKey}
+            onNavigate={navigate}
+          />
+        )}
+        {page.type === "tab" && (
+          <TabView chirashiList={filteredList} kana={page.kana} pageNum={page.pageNum} onNavigate={navigate} />
+        )}
+        {page.type === "detail" && (
+          <DetailView chirashiList={chirashiList} id={page.id} back={page.back} onNavigate={navigate} />
+        )}
       </main>
+
+      <footer className="border-t px-6 py-2 flex items-center text-[10px] font-mono" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+        <span>映画チラシ・コレクション</span>
+        <span className="mx-3">·</span>
+        <span>登録数: {chirashiList.length}件</span>
+        <span className="mx-3">·</span>
+        <span style={{ color: "var(--muted)" }}>データ: chirashi-data.csv</span>
+        <span className="ml-auto">© 2026</span>
+      </footer>
     </div>
   )
 }
