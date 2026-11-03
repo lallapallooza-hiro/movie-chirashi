@@ -1438,6 +1438,10 @@ export default function App() {
   const [decade, setDecade] = useState("all")
   const [year, setYear] = useState("all")
 
+  useEffect(() => {
+    document.title = "映画チラシコレクション"
+  }, [])
+
   // 起動時に public/chirashi-data.csv を読み込む
   useEffect(() => {
     fetch("/chirashi-data.csv")
