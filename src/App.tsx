@@ -135,7 +135,7 @@ function normalizeSearchText(value: string): string {
 
 // ページ遷移の状態
 type Page =
-  | { type: "main" }
+  | { type: "main"; pageNum?: number }
   | { type: "tab"; kana: string; pageNum: number }
   | { type: "detail"; id: string; back: Page }
 
@@ -1138,17 +1138,16 @@ function Pagination({ pageNum, totalPages, onChange }: {
 function MainView({
   chirashiList,
   filterActive,
-  filterKey,
+  pageNum,
+  onPageChange,
   onNavigate,
 }: {
   chirashiList: Chirashi[]
   filterActive: boolean
-  filterKey: string
+  pageNum: number
+  onPageChange: (page: number) => void
   onNavigate: (p: Page) => void
 }) {
-  const [pageNum, setPageNum] = useState(1)
-  useEffect(() => setPageNum(1), [filterKey])
-
   const latestItem = [...chirashiList]
     .filter((item) => dateValue(item.addedAt) > 0)
     .sort((a, b) => dateValue(b.addedAt) - dateValue(a.addedAt))[0]
@@ -1207,11 +1206,15 @@ function MainView({
                 key={group.key}
                 c={group.representative}
                 versionCount={group.versions.length}
-                onClick={() => onNavigate({ type: "detail", id: group.representative.id, back: { type: "main" } })}
+                onClick={() => onNavigate({
+                  type: "detail",
+                  id: group.representative.id,
+                  back: { type: "main", pageNum: safePage },
+                })}
               />
             ))}
           </div>
-          <Pagination pageNum={safePage} totalPages={totalPages} onChange={setPageNum} />
+          <Pagination pageNum={safePage} totalPages={totalPages} onChange={onPageChange} />
         </>
       )}
     </div>
@@ -1494,7 +1497,6 @@ export default function App() {
     })
   }, [chirashiList, query, decade, year])
   const filterActive = Boolean(query.trim() || decade !== "all" || year !== "all")
-  const filterKey = `${query}\u0000${decade}\u0000${year}`
 
   const updateQuery = (value: string) => {
     setQuery(value)
@@ -1553,7 +1555,8 @@ export default function App() {
           <MainView
             chirashiList={filteredList}
             filterActive={filterActive}
-            filterKey={filterKey}
+            pageNum={page.pageNum ?? 1}
+            onPageChange={(nextPage) => navigate({ type: "main", pageNum: nextPage }, false)}
             onNavigate={navigate}
           />
         )}
