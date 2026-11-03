@@ -51,6 +51,28 @@ function optimizeCloudinaryUrl(url: string): string {
   return url.replace(uploadPath, optimizedUploadPath)
 }
 
+function safeHttpUrl(value?: string): string {
+  const trimmed = value?.trim()
+  if (!trimmed) return ""
+  try {
+    const parsed = new URL(trimmed)
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : ""
+  } catch {
+    return ""
+  }
+}
+
+function safeAmazonUrl(value?: string): string {
+  const safeUrl = safeHttpUrl(value)
+  if (!safeUrl) return ""
+  const hostname = new URL(safeUrl).hostname
+  return hostname === "amazon.co.jp"
+    || hostname.endsWith(".amazon.co.jp")
+    || hostname === "amzn.to"
+    ? safeUrl
+    : ""
+}
+
 const japaneseCollator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" })
 
 function dateValue(value: string): number {
@@ -361,8 +383,14 @@ function Lightbox({ state, title, affiliateUrl2, onClose }: {
   const isDragging = zoom > 1
 
   const safeTitle = title?.trim()
-  const amazonUrl = safeTitle ? "https://amazon.co.jp/s?k=" + encodeURIComponent(safeTitle + " DVD") + "&tag=bqe07751-22" : ""
-  const mercariUrl = affiliateUrl2?.trim() || (safeTitle ? "https://mercari.com" + encodeURIComponent(safeTitle + " チラシ") : "")
+  const amazonUrl = safeTitle
+    ? safeAmazonUrl(affiliateUrl1)
+      || "https://www.amazon.co.jp/s?k=" + encodeURIComponent(safeTitle + " DVD") + "&tag=bqe07751-22"
+    : ""
+  const mercariUrl = safeTitle
+    ? safeHttpUrl(affiliateUrl2)
+      || "https://jp.mercari.com/search?keyword=" + encodeURIComponent(safeTitle + " チラシ")
+    : ""
   return (
     <div className="lightbox-modal fixed inset-0 z-50 flex flex-col items-center justify-center" style={{ background: "rgba(0,0,0,0.92)" }} onContextMenu={(e) => e.preventDefault()}>
       <div className="w-full flex items-center justify-between px-6 py-3 flex-shrink-0" style={{ background: "rgba(0,0,0,0.4)" }}>
@@ -386,7 +414,7 @@ function Lightbox({ state, title, affiliateUrl2, onClose }: {
 
       <div className="w-full border-t border-white/10 px-4 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-3 flex-shrink-0" style={{ background: "rgba(0,0,0,0.72)" }}>
         {safeTitle ? (
-          <a href={amazonUrl} target="_blank" rel="noopener noreferrer" className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-neutral-950 bg-amber-400 hover:bg-amber-300 transition-colors">
+          <a href={amazonUrl} target="_blank" rel="noopener noreferrer sponsored" className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-neutral-950 bg-amber-400 hover:bg-amber-300 transition-colors">
             Amazonでこの映画をチェック
           </a>
         ) : (
@@ -394,9 +422,15 @@ function Lightbox({ state, title, affiliateUrl2, onClose }: {
             Amazonでこの映画をチェック
           </span>
         )}
-        <a href={mercariUrl} target="_blank" rel="noopener noreferrer sponsored" className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-white border border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 transition-colors">
-          メルカリ・他でチェック
-        </a>
+        {safeTitle ? (
+          <a href={mercariUrl} target="_blank" rel="noopener noreferrer sponsored" className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-white border border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 transition-colors">
+            メルカリ・他でチェック
+          </a>
+        ) : (
+          <span className="min-h-11 sm:min-w-64 px-5 py-3 flex items-center justify-center text-center text-sm font-bold text-white border border-white/30 bg-white/10 opacity-50 pointer-events-none transition-colors">
+            メルカリ・他でチェック
+          </span>
+        )}
       </div>
     </div>
   )
