@@ -75,6 +75,19 @@ function safeAmazonUrl(value?: string): string {
     : ""
 }
 
+function scrollToPageTopAfterRender() {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const scrollingElement = document.scrollingElement
+      if (scrollingElement) {
+        scrollingElement.scrollTo({ top: 0, behavior: "smooth" })
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" })
+      }
+    })
+  })
+}
+
 const japaneseCollator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" })
 
 function dateValue(value: string): number {
@@ -1119,7 +1132,7 @@ function Pagination({ pageNum, totalPages, onChange }: {
       <button
         onClick={() => {
           onChange(pageNum + 1)
-          window.scrollTo({ top: 0, behavior: "smooth" })
+          scrollToPageTopAfterRender()
         }}
         disabled={pageNum === totalPages}
         className="border px-4 py-2 font-mono text-xs transition-colors hover:bg-[#1a1410] hover:text-white disabled:cursor-default disabled:opacity-30"
