@@ -110,24 +110,39 @@ function sortChirashi(items: Chirashi[]): Chirashi[] {
   )
 }
 
-function groupChirashi(items: Chirashi[]): ChirashiGroup[] {
+function chirashiGroupKey(item: Pick<Chirashi, "title" | "year">): string {
+  return `${item.title.normalize("NFKC").trim()}\u0000${item.year}`
+}
+
+function groupChirashi(items: Chirashi[], versionSource: Chirashi[] = items): ChirashiGroup[] {
+  const allVersions = new Map<string, Chirashi[]>()
+  for (const item of sortChirashi(versionSource)) {
+    const key = chirashiGroupKey(item)
+    const versions = allVersions.get(key)
+    if (versions) versions.push(item)
+    else allVersions.set(key, [item])
+  }
+
   const groups = new Map<string, Chirashi[]>()
   for (const item of sortChirashi(items)) {
-    const key = `${item.title}\u0000${item.year}`
+    const key = chirashiGroupKey(item)
     const versions = groups.get(key)
     if (versions) versions.push(item)
     else groups.set(key, [item])
   }
 
-  return Array.from(groups, ([key, versions]) => {
-    const sortedVersions = [...versions].sort((a, b) =>
+  return Array.from(groups, ([key, visibleVersions]) => {
+    const sortedVersions = [...(allVersions.get(key) ?? visibleVersions)].sort((a, b) =>
       dateValue(b.addedAt) - dateValue(a.addedAt) || japaneseCollator.compare(b.id, a.id)
     )
+    const representative = [...visibleVersions].sort((a, b) =>
+      dateValue(b.addedAt) - dateValue(a.addedAt) || japaneseCollator.compare(b.id, a.id)
+    )[0]
     return {
       key,
-      title: sortedVersions[0].title,
+      title: representative.title,
       versions: sortedVersions,
-      representative: sortedVersions[0],
+      representative,
     }
   }).sort((a, b) =>
     b.representative.year - a.representative.year
@@ -504,13 +519,11 @@ function ChirashiCard({ c, versionCount, onClick }: {
             </span>
           )}
         </div>
-        {versionCount > 1 && (
-          <div className="absolute top-1.5 right-1.5">
-            <span className="font-mono text-[9px] px-2 py-1 text-white shadow-sm" style={{ background: "var(--accent)" }}>
-              全{versionCount}種類
-            </span>
-          </div>
-        )}
+        <div className="absolute top-1.5 right-1.5">
+          <span className="font-mono text-[9px] px-2 py-1 text-white shadow-sm" style={{ background: "var(--accent)" }}>
+            全{versionCount}種類
+          </span>
+        </div>
         {/* パネル枚数バッジ */}
         {c.panels.length > 1 && (
           <div className="absolute bottom-1.5 right-1.5">
@@ -528,7 +541,7 @@ function ChirashiCard({ c, versionCount, onClick }: {
         <p className="font-serif text-xs font-semibold leading-snug" style={{ color: "var(--fg)" }}>{c.title}</p>
         <p className="font-mono text-[9px] mt-0.5" style={{ color: "var(--muted)" }}>
           {c.year}年
-          {versionCount > 1 ? ` · ${versionCount}種類` : ""}
+          {` · ${versionCount}種類`}
         </p>
       </div>
     </div>
@@ -1171,7 +1184,7 @@ function MainView({
     : latestDate
       ? chirashiList.filter((item) => dateValue(item.addedAt) === latestDateValue)
       : []
-  const groups = groupChirashi(visibleItems)
+  const groups = groupChirashi(visibleItems, chirashiList)
   const totalPages = Math.max(1, Math.ceil(groups.length / ITEMS_PER_PAGE))
   const safePage = Math.min(pageNum, totalPages)
   const pageGroups = groups.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE)
@@ -1250,7 +1263,7 @@ function TabView({
   onNavigate: (p: Page, scrollToTop?: boolean) => void
 }) {
   const items = chirashiList.filter((c) => normalizeKana(c.titleKana) === kana)
-  const groups = groupChirashi(items)
+  const groups = groupChirashi(items, chirashiList)
   const totalPages = Math.max(1, Math.ceil(groups.length / ITEMS_PER_PAGE))
   const safePage = Math.min(pageNum, totalPages)
   const pageGroups = groups.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE)
@@ -1311,7 +1324,7 @@ function DetailView({
   const versions = useMemo(
     () => selected
       ? chirashiList
-        .filter((item) => item.title === selected.title && item.year === selected.year)
+        .filter((item) => chirashiGroupKey(item) === chirashiGroupKey(selected))
         .sort((a, b) => dateValue(b.addedAt) - dateValue(a.addedAt) || japaneseCollator.compare(b.id, a.id))
       : [],
     [chirashiList, selected?.title, selected?.year],
